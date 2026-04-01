@@ -1,10 +1,24 @@
 import { motion } from "framer-motion";
-import { ArrowRight, Clock, Users, AlertTriangle, Bot, Eye, ShieldCheck, BarChart3 } from "lucide-react";
+import {
+  ArrowRight,
+  Clock,
+  Users,
+  AlertTriangle,
+  Bot,
+  Eye,
+  ShieldCheck,
+  BarChart3,
+  Zap,
+  CheckCircle2,
+  FileText,
+  Search,
+  MoreHorizontal,
+  Download,
+  TrendingUp,
+  Target,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import ReviewMockup from "@/components/ReviewMockup";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -17,222 +31,427 @@ const fadeUp = {
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+    <div className="min-h-screen bg-white dark:bg-slate-950">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden pt-20 pb-32 bg-gradient-to-br from-blue-50 via-white to-cyan-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-200/20 dark:bg-blue-900/20 rounded-full blur-3xl" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-200/20 dark:bg-cyan-900/20 rounded-full blur-3xl" />
+        </div>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-hero pt-32 pb-24">
-        {/* Subtle grid overlay */}
-        <div className="absolute inset-0 opacity-[0.04]" style={{
-          backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
-        }} />
-        <div className="container relative mx-auto px-6 text-center">
-          <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0}>
-            <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald_custom/30 bg-emerald_custom-light px-4 py-1.5 text-xs font-medium text-emerald_custom">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              AI-Powered GRC Automation
-            </span>
+        <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div className="text-center space-y-8" initial="hidden" animate="visible">
+            {/* Badge */}
+            <motion.div
+              variants={fadeUp}
+              custom={0}
+              className="mx-auto inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-slate-800 dark:to-slate-800 border border-blue-200 dark:border-slate-700"
+            >
+              <Zap className="h-4 w-4 text-blue-600 dark:text-cyan-400" />
+              <span className="text-xs font-semibold text-blue-600 dark:text-cyan-400">
+                Enterprise GRC Automation
+              </span>
+            </motion.div>
+
+            {/* Main Heading */}
+            <motion.div variants={fadeUp} custom={1} className="space-y-4">
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight">
+                <span className="bg-gradient-to-r from-blue-600 via-blue-600 to-cyan-600 dark:from-blue-400 dark:via-cyan-400 dark:to-blue-400 bg-clip-text text-transparent">
+                  Answer Security Questions
+                </span>
+                <br />
+                <span className="text-slate-900 dark:text-white">in Minutes, Not Weeks</span>
+              </h1>
+              <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed">
+                Stop spending weeks on security questionnaires. TrustFlow uses AI to draft answers grounded in your policies, with built-in human review for zero hallucinations.
+              </p>
+            </motion.div>
+
+            {/* CTA Buttons */}
+            <motion.div
+              variants={fadeUp}
+              custom={2}
+              className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            >
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold h-12 px-8"
+                asChild
+              >
+                <Link to="/projects" className="flex items-center gap-2">
+                  Start Review <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-2 border-blue-200 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-slate-800 h-12 px-8"
+                asChild
+              >
+                <Link to="/technical">View Technical Specs</Link>
+              </Button>
+            </motion.div>
+
+            {/* Stats */}
+            <motion.div
+              variants={fadeUp}
+              custom={3}
+              className="grid grid-cols-3 gap-4 sm:gap-8 max-w-2xl mx-auto pt-8 border-t border-slate-200 dark:border-slate-800"
+            >
+              {[
+                { label: "Faster", value: "10x" },
+                { label: "Questions Answered", value: "80%" },
+                { label: "Hallucinations", value: "0" },
+              ].map((stat) => (
+                <div key={stat.label} className="text-center">
+                  <div className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-cyan-400">
+                    {stat.value}
+                  </div>
+                  <div className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* The Problem Section */}
+      <section className="py-20 sm:py-32 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4">
+              The Challenge Every Enterprise Faces
+            </h2>
+            <p className="text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
+              Security questionnaires are slowing down your deals. Here's why:
+            </p>
           </motion.div>
 
-          <motion.h1
-            className="mx-auto mt-6 max-w-4xl font-display text-5xl font-bold leading-tight tracking-tight text-gradient-hero md:text-6xl lg:text-7xl"
-            initial="hidden" animate="visible" variants={fadeUp} custom={1}
-          >
-            Close Enterprise Deals 10x Faster.
-          </motion.h1>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                icon: Clock,
+                title: "Weeks of Manual Work",
+                description: "Security teams spend 20-40 hours per questionnaire manually typing responses.",
+                color: "red",
+              },
+              {
+                icon: Users,
+                title: "Dedicated Headcount",
+                description: "Companies need 1-2 full-time employees just handling security reviews.",
+                color: "orange",
+              },
+              {
+                icon: AlertTriangle,
+                title: "Lost Revenue",
+                description: "Delayed responses push enterprise deals past quarter deadlines.",
+                color: "amber",
+              },
+            ].map((item, i) => {
+              const colorClasses = {
+                red: "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900",
+                orange: "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-900",
+                amber: "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900",
+              };
 
-          <motion.p
-            className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-indigo-light"
-            initial="hidden" animate="visible" variants={fadeUp} custom={2}
-          >
-            Automate 80% of security questionnaires with a fact-grounded AI agent
-            that cites your internal policies.
-          </motion.p>
+              return (
+                <motion.div
+                  key={item.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1, duration: 0.5 }}
+                  className={`rounded-xl border p-8 ${colorClasses[item.color as keyof typeof colorClasses]}`}
+                >
+                  <div className="flex items-start gap-4">
+                    <item.icon className="h-8 w-8 text-slate-600 dark:text-slate-400 flex-shrink-0 mt-1" />
+                    <div>
+                      <h3 className="font-semibold text-slate-900 dark:text-white mb-2">
+                        {item.title}
+                      </h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {item.description}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
+      {/* How It Works */}
+      <section className="py-20 sm:py-32">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
-            className="mt-10 flex items-center justify-center gap-4"
-            initial="hidden" animate="visible" variants={fadeUp} custom={3}
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
           >
-            <Button size="lg" asChild className="bg-accent text-accent-foreground hover:bg-accent/90 font-display font-semibold px-8">
-              <Link to="/projects">Open Reviewer Console</Link>
-            </Button>
-            <Button size="lg" variant="outline" asChild className="border-indigo-light/30 text-indigo-light hover:bg-indigo-light/10 font-display">
-              <Link to="/technical">
-                Technical Specs <ArrowRight className="ml-2 h-4 w-4" />
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4">
+              How TrustFlow Works
+            </h2>
+            <p className="text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
+              Simple workflow. Maximum control. Zero hallucinations.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-4 gap-6">
+            {[
+              {
+                step: "1",
+                icon: FileText,
+                title: "Upload Policies",
+                description: "Feed internal policies, SOPs, and documentation into the knowledge base.",
+              },
+              {
+                step: "2",
+                icon: Search,
+                title: "Semantic Search",
+                description: "AI searches and finds relevant policy sections for each question.",
+              },
+              {
+                step: "3",
+                icon: Bot,
+                title: "Draft Answers",
+                description: "Claude generates answers with citations to your internal policies.",
+              },
+              {
+                step: "4",
+                icon: CheckCircle2,
+                title: "Human Review",
+                description: "Your team reviews, edits, and approves before exporting.",
+              },
+            ].map((item, i) => (
+              <motion.div
+                key={item.step}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.5 }}
+              >
+                <div className="relative">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 h-full">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 text-white flex items-center justify-center font-bold text-sm">
+                        {item.step}
+                      </div>
+                      {i < 3 && (
+                        <ArrowRight className="h-5 w-5 text-slate-300 dark:text-slate-700 absolute -right-16 hidden md:block" />
+                      )}
+                    </div>
+                    <item.icon className="h-8 w-8 text-slate-400 dark:text-slate-600 mb-4" />
+                    <h3 className="font-semibold text-slate-900 dark:text-white mb-2">
+                      {item.title}
+                    </h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      {item.description}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Key Features */}
+      <section className="py-20 sm:py-32 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4">
+              Built on Trust & Transparency
+            </h2>
+            <p className="text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
+              Every answer is grounded in your policies. Every decision is human-approved.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              {
+                icon: Eye,
+                title: "Human-in-the-Loop",
+                description: "Every AI-generated answer requires explicit human review and approval.",
+                features: [
+                  "Manual override capability",
+                  "Edit & rephrase answers",
+                  "Approve before export",
+                  "Full audit trail",
+                ],
+              },
+              {
+                icon: ShieldCheck,
+                title: "Zero Hallucinations",
+                description: "Closed-context RAG ensures answers are grounded only in your policies.",
+                features: [
+                  "Policy-grounded answers",
+                  "Confidence scoring",
+                  "Source citations",
+                  "No fabricated data",
+                ],
+              },
+              {
+                icon: BarChart3,
+                title: "Smart Analytics",
+                description: "Track automation rates, review times, and answer quality metrics.",
+                features: [
+                  "Real-time dashboards",
+                  "Performance metrics",
+                  "Team productivity",
+                  "Export reports",
+                ],
+              },
+            ].map((item, i) => (
+              <motion.div
+                key={item.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.5 }}
+                className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8"
+              >
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/50 dark:to-cyan-900/50 flex items-center justify-center mb-6">
+                  <item.icon className="h-6 w-6 text-blue-600 dark:text-cyan-400" />
+                </div>
+                <h3 className="font-semibold text-lg text-slate-900 dark:text-white mb-2">
+                  {item.title}
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+                  {item.description}
+                </p>
+                <ul className="space-y-3">
+                  {item.features.map((feature) => (
+                    <li key={feature} className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                      <span className="text-slate-600 dark:text-slate-400">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Use Cases */}
+      <section className="py-20 sm:py-32">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4">
+              Perfect for Every Team
+            </h2>
+            <p className="text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
+              From startups to enterprises, TrustFlow scales with your needs.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                title: "Security Teams",
+                description: "Cut questionnaire response time from weeks to hours.",
+                icon: ShieldCheck,
+              },
+              {
+                title: "Legal & Compliance",
+                description: "Ensure consistent, policy-aligned responses across all questions.",
+                icon: Target,
+              },
+              {
+                title: "Sales Teams",
+                description: "Close deals faster by responding to security reviews in days.",
+                icon: TrendingUp,
+              },
+            ].map((useCase, i) => {
+              const Icon = useCase.icon;
+              return (
+                <motion.div
+                  key={useCase.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1, duration: 0.5 }}
+                  className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center"
+                >
+                  <Icon className="h-8 w-8 text-blue-600 dark:text-cyan-400 mx-auto mb-4" />
+                  <h3 className="font-semibold text-lg text-slate-900 dark:text-white mb-2">
+                    {useCase.title}
+                  </h3>
+                  <p className="text-slate-600 dark:text-slate-400">{useCase.description}</p>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 sm:py-32 bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-900 dark:to-cyan-900 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <svg
+            className="absolute inset-0 w-full h-full"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 1440 320"
+          >
+            <path
+              fill="currentColor"
+              fillOpacity="0.1"
+              d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,144C960,149,1056,139,1152,133.3C1248,128,1344,128,1392,128L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"
+            ></path>
+          </svg>
+        </div>
+
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <motion.div
+            className="text-center space-y-8 max-w-2xl mx-auto"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <h2 className="text-4xl sm:text-5xl font-bold text-white">
+              Ready to Close Deals Faster?
+            </h2>
+            <p className="text-lg text-white/90">
+              Start reviewing security questionnaires with confidence today. No credit card required.
+            </p>
+            <Button
+              size="lg"
+              className="bg-white hover:bg-slate-100 text-blue-600 font-semibold h-12 px-8"
+              asChild
+            >
+              <Link to="/projects" className="flex items-center gap-2">
+                Launch Review Console <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
           </motion.div>
         </div>
       </section>
-
-      {/* The Problem */}
-      <section className="py-24">
-        <div className="container mx-auto px-6">
-          <motion.div
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <h2 className="font-display text-3xl font-bold text-foreground md:text-4xl">
-              The Problem
-            </h2>
-            <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
-              Security reviews are the #1 bottleneck killing enterprise sales velocity.
-            </p>
-          </motion.div>
-
-          <div className="grid gap-6 md:grid-cols-3">
-            {[
-              {
-                icon: Clock,
-                title: "20–40 Hours Per Questionnaire",
-                description: "Security teams spend weeks manually answering repetitive questions across hundreds of fields.",
-              },
-              {
-                icon: Users,
-                title: "1–2 Full-Time Employees",
-                description: "Companies dedicate entire headcount just for manual data entry into security review portals.",
-              },
-              {
-                icon: AlertTriangle,
-                title: "Deals Stall & Revenue Lost",
-                description: "Slow responses push enterprise deals past quarter deadlines, directly impacting revenue targets.",
-              },
-            ].map((item, i) => (
-              <motion.div
-                key={item.title}
-                className="bg-card-gradient rounded-xl border border-border p-8 shadow-card transition-shadow hover:shadow-elevated"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-              >
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-destructive/10">
-                  <item.icon className="h-6 w-6 text-destructive" />
-                </div>
-                <h3 className="font-display text-lg font-semibold text-foreground">{item.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* The Solution */}
-      <section className="bg-card py-24 border-y border-border">
-        <div className="container mx-auto px-6">
-          <motion.div
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <span className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-xs font-medium text-primary">
-              <Bot className="h-3.5 w-3.5" />
-              Interactive Preview
-            </span>
-            <h2 className="mt-4 font-display text-3xl font-bold text-foreground md:text-4xl">
-              The TrustFlow Review Suite
-            </h2>
-            <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
-              See how AI-drafted answers are reviewed, cited, and approved—all in one interface.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <ReviewMockup />
-          </motion.div>
-
-          <div className="mx-auto mt-12 max-w-3xl rounded-2xl border border-border bg-background p-1 shadow-elevated">
-            <div className="rounded-xl bg-hero p-8 text-center">
-              <div className="flex items-center justify-center gap-8 text-indigo-light">
-                <div className="text-center">
-                  <p className="font-display text-4xl font-bold text-gradient-hero">80%</p>
-                  <p className="mt-1 text-xs">Automation Rate</p>
-                </div>
-                <div className="h-12 w-px bg-indigo-light/20" />
-                <div className="text-center">
-                  <p className="font-display text-4xl font-bold text-gradient-hero">10x</p>
-                  <p className="mt-1 text-xs">Faster Turnaround</p>
-                </div>
-                <div className="h-12 w-px bg-indigo-light/20" />
-                <div className="text-center">
-                  <p className="font-display text-4xl font-bold text-gradient-hero">0</p>
-                  <p className="mt-1 text-xs">Hallucinations</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Key Benefits */}
-      <section className="py-24">
-        <div className="container mx-auto px-6">
-          <motion.div
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <h2 className="font-display text-3xl font-bold text-foreground md:text-4xl">
-              Built for Trust, Not Just Speed
-            </h2>
-          </motion.div>
-
-          <div className="grid gap-6 md:grid-cols-3">
-            {[
-              {
-                icon: Eye,
-                title: "Human-in-the-Loop Review",
-                description: "Every AI-generated answer requires explicit human approval before it can be exported or submitted.",
-                color: "bg-primary/10",
-                iconColor: "text-primary",
-              },
-              {
-                icon: ShieldCheck,
-                title: "Zero Hallucination RAG",
-                description: "Closed-Context retrieval ensures answers are grounded only in your uploaded policies—never fabricated.",
-                color: "bg-emerald_custom-light",
-                iconColor: "text-emerald_custom",
-              },
-              {
-                icon: BarChart3,
-                title: "Automated Confidence Scoring",
-                description: "Every response includes a similarity-based confidence score so reviewers know exactly where to focus.",
-                color: "bg-amber_custom-light",
-                iconColor: "text-amber_custom",
-              },
-            ].map((item, i) => (
-              <motion.div
-                key={item.title}
-                className="bg-card-gradient rounded-xl border border-border p-8 shadow-card transition-shadow hover:shadow-elevated"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-              >
-                <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-lg ${item.color}`}>
-                  <item.icon className={`h-6 w-6 ${item.iconColor}`} />
-                </div>
-                <h3 className="font-display text-lg font-semibold text-foreground">{item.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <Footer />
     </div>
   );
 };

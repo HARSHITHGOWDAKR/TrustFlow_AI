@@ -8,6 +8,8 @@ import TechnicalDeepDive from "./pages/TechnicalDeepDive.tsx";
 import { ProjectsPage } from "./pages/Projects.tsx";
 import { KnowledgeBasePage } from "./pages/KnowledgeBase.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 const queryClient = new QueryClient();
 
@@ -17,13 +19,19 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/technical" element={<TechnicalDeepDive />} />
-          <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/knowledge-base" element={<KnowledgeBasePage />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <div className="min-h-screen flex flex-col bg-white dark:bg-slate-950">
+          <Navbar />
+          <main className="flex-1 pt-0">
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/technical" element={<TechnicalDeepDive />} />
+              <Route path="/projects" element={<ProjectsPage />} />
+              <Route path="/knowledge-base" element={<KnowledgeBasePage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+          <Footer />
+        </div>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
