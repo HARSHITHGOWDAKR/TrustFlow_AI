@@ -1,0 +1,20 @@
+{
+  "name": "trustflow",
+  "version": "1.0.0",
+  "description": "TrustFlow AI - AWS-powered RAG agent for security questionnaires",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w backend & npm run dev -w frontend",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "lint": "npm run lint -w backend && npm run lint -w frontend",
+    "format": "npm run format -w backend && npm run format -w frontend"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

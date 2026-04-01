@@ -18,24 +18,36 @@ model Project {
 }
 
 model QuestionItem {
-  id              Int      @id @default(autoincrement())
+  id              Int            @id @default(autoincrement())
   projectId       Int
-  project         Project  @relation(fields: [projectId], references: [id])
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   question        String
   answer          String?
-  status          String   @default("PENDING")
+  status          String         @default("PENDING")
   confidence      Float?
   citations       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  reviewEvents    ReviewEvent[]
 }
 
 model Embedding {
   id        Int      @id @default(autoincrement())
   projectId Int
-  project   Project  @relation(fields: [projectId], references: [id])
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   chunk     String
   vector    Unsupported("vector(1536)")
   source    String?
   createdAt DateTime @default(now())
+}
+
+model ReviewEvent {
+  id              Int      @id @default(autoincrement())
+  questionItemId  Int
+  questionItem    QuestionItem @relation(fields: [questionItemId], references: [id], onDelete: Cascade)
+  action          String   // approve, reject, edit
+  oldAnswer       String?
+  newAnswer       String?
+  reviewer        String?  // reviewer name
+  timestamp       DateTime @default(now())
 }

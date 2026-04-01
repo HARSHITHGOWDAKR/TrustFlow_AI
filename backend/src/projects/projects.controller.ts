@@ -29,7 +29,7 @@ export class ProjectsController {
     }
 
     const project = await this.prisma.project.create({
-      data: { name: `QA Upload ${new Date().toISOString()}` },
+      data: { name: `Project ${new Date().toISOString()}` },
     });
 
     const questionItems = [];
@@ -50,9 +50,19 @@ export class ProjectsController {
       questionItems.push(item);
     }
 
+    // Enqueue draft job (Q-Flow pattern)
     await this.draftWorker.enqueueDraft(project.id);
 
-    return { project, questionsCount: questionItems.length };
+    return {
+      project: {
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+      },
+      questionsCount: questionItems.length,
+    };
   }
 
   @Get(':id/review')
@@ -67,30 +77,79 @@ export class ProjectsController {
       throw new HttpException('Project not found', HttpStatus.NOT_FOUND);
     }
 
-    return { projectId: project.id, questions: project.questions };
+    return {
+      projectId: project.id,
+      questions: project.questions.map((q) => ({
+        id: q.id,
+        question: q.question,
+        answer: q.answer,
+        status: q.status,
+        confidence: q.confidence,
+        citations: q.citations,
+      })),
+    };
   }
 
-  @Patch('/questions/:id/status')
-  async updateQuestionStatus(@Param('id') id: string, @Body('status') status: 'APPROVED' | 'REJECTED') {
-    if (!['APPROVED', 'REJECTED'].includes(status)) {
+  @Patch('questions/:id/status')
+  async updateQuestionStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string; editedAnswer?: string },
+  ) {
+    const questionId = Number(id);
+    const { status, editedAnswer } = body;
+
+    // Validate status (Q-Flow pattern)
+    const validStatuses = ['PENDING', 'DRAFTED', 'NEEDS_REVIEW', 'APPROVED', 'REJECTED'];
+    if (!validStatuses.includes(status)) {
       throw new HttpException('Invalid status', HttpStatus.BAD_REQUEST);
     }
 
-    return this.prisma.questionItem.update({
-      where: { id: Number(id) },
-      data: { status },
+    // Get current question to track review event
+    const currentQuestion = await this.prisma.questionItem.findUnique({
+      where: { id: questionId },
     });
+
+    if (!currentQuestion) {
+      throw new HttpException('Question not found', HttpStatus.NOT_FOUND);
+    }
+
+    // Update question
+    const updated = await this.prisma.questionItem.update({
+      where: { id: questionId },
+      data: {
+        status,
+        answer: editedAnswer ?? currentQuestion.answer,
+      },
+    });
+
+    // Log review event (Q-Flow audit trail pattern)
+    await this.prisma.reviewEvent.create({
+      data: {
+        questionItemId: questionId,
+        action: status === 'APPROVED' ? 'approve' : status === 'REJECTED' ? 'reject' : 'edit',
+        oldAnswer: currentQuestion.answer,
+        newAnswer: editedAnswer,
+        reviewer: 'user', // Could be JWT user in production
+      },
+    });
+
+    return updated;
   }
 
   @Get(':id/export')
   async exportProject(@Param('id') id: string, @Res() res: Response) {
     const projectId = Number(id);
+    
+    // Check if any items are still in NEEDS_REVIEW (Q-Flow export gate pattern)
     const pendingCount = await this.prisma.questionItem.count({
       where: { projectId, status: 'NEEDS_REVIEW' },
     });
 
     if (pendingCount > 0) {
-      throw new HttpException('There are items needing review', HttpStatus.CONFLICT);
+      throw new HttpException(
+        'There are items needing review. Cannot export until all items are reviewed.',
+        HttpStatus.CONFLICT,
+      );
     }
 
     const questions = await this.prisma.questionItem.findMany({
@@ -99,8 +158,8 @@ export class ProjectsController {
     });
 
     const worksheetData = [
-      ['Question', 'Answer', 'Status', 'Confidence', 'Citations'],
-      ...questions.map((q) => [q.question, q.answer || '', q.status, q.confidence || 0, q.citations || '']),
+      ['Question', 'Final Answer', 'Status', 'Confidence'],
+      ...questions.map((q) => [q.question, q.answer || '', q.status, q.confidence || 0]),
     ];
 
     const workbook = XLSX.utils.book_new();
@@ -114,3 +173,4 @@ export class ProjectsController {
     res.send(buffer);
   }
 }
+

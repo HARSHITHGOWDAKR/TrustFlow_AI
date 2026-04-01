@@ -6,9 +6,17 @@ import { TrustFlowKnowledgeModule } from './trustflow-knowledge/trustflow-knowle
 import { DraftModule } from './draft/draft.module';
 import { ProjectsModule } from './projects/projects.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReviewModule } from './review/review.module';
 
 @Module({
-  imports: [PrismaModule, AwsIntegrationModule, TrustFlowKnowledgeModule, DraftModule, ProjectsModule],
+  imports: [
+    PrismaModule,
+    AwsIntegrationModule,
+    TrustFlowKnowledgeModule,
+    DraftModule,
+    ProjectsModule,
+    ReviewModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
