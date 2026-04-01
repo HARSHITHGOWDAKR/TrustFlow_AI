@@ -1,53 +1,163 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# TrustFlow AI Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A **NestJS** backend for the TrustFlow AI agent, integrating **AWS Bedrock** and **Amazon Textract** for intelligent document processing and RAG-based Q&A workflows.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Architecture Overview
 
-## Description
+- **AWS Integration**: Textract for document parsing, Bedrock for embeddings & LLM calls
+- **Vector Database**: PostgreSQL with pgvector for semantic search
+- **Background Jobs**: BullMQ workers for asynchronous draft generation
+- **RAG Pipeline**: LangChain-based text chunking with semantic search
+- **Human-in-the-Loop**: Confidence thresholds determine review requirements
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Prerequisites
 
-## Project setup
+- Node.js 18+
+- Docker & Docker Compose
+- AWS Account with Bedrock & Textract access
+- AWS credentials configured locally
+
+## Project Setup
+
+### 1. Install Dependencies
 
 ```bash
-$ npm install
+npm install
 ```
 
-## Compile and run the project
+### 2. Configure Environment Variables
+
+Edit `.env` with your AWS credentials:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/trustflow
+REDIS_HOST=localhost
+REDIS_PORT=6379
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_access_key_id
+AWS_SECRET_ACCESS_KEY=your_secret_access_key
+PORT=3000
 ```
 
-## Run tests
+### 3. Start Docker Services
 
 ```bash
-# unit tests
+docker-compose up -d
+```
+
+This starts:
+- PostgreSQL 16 with pgvector extension
+- Redis 7 for BullMQ
+
+### 4. Run Database Migrations
+
+```bash
+npx prisma migrate dev --name init
+```
+
+### 5. Generate Prisma Client
+
+```bash
+npx prisma generate
+```
+
+## Development
+
+### Run Development Server
+
+```bash
+npm run start:dev
+```
+
+Server runs on `http://localhost:3000`
+
+### Build for Production
+
+```bash
+npm run build
+npm run start:prod
+```
+
+## API Endpoints
+
+### Projects
+- `POST /projects/upload` - Upload questionnaire (.xlsx)
+- `GET /projects/:id/review` - Get review data
+- `PATCH /projects/questions/:id/status` - Update question status
+- `GET /projects/:id/export` - Export to Excel (409 if pending)
+
+### Knowledge Base
+- `POST /knowledge-base/:projectId/ingest` - Ingest PDF to knowledge base
+
+## Database Schema
+
+### Models
+- **Project** - Main project container
+- **QuestionItem** - Questions with AI-generated answers
+- **Embedding** - Vector embeddings for semantic search (1536-dim Titan embeddings)
+
+### Key Features
+- Vector similarity search using pgvector
+- Confidence scoring (0.65 threshold for human review)
+- Citation tracking from source PDFs
+
+## Services
+
+### AwsIntegrationService
+- `parseDocumentWithTextract()` - Extract text & tables from PDFs
+- `generateEmbeddings()` - Create 1536-dim Bedrock Titan embeddings
+- `generateDraftAnswer()` - Generate answers using Claude 3.5 Sonnet
+
+### TrustFlowKnowledgeService
+- `ingestPdfToKnowledgeBase()` - RAG pipeline for PDF ingestion
+- Text chunking (1000 chars, 200 overlap)
+- Batch embedding generation
+
+### DraftWorker
+- Processes PENDING questions via BullMQ
+- Vector similarity search (top 4 chunks)
+- Confidence-based status assignment
+- Citation aggregation
+
+## Testing
+
+```bash
+# Unit tests
+npm run test
+
+# E2E tests
+npm run test:e2e
+
+# Coverage
+npm run test:cov
+```
+
+## Technical Highlights
+
+✅ **Bedrock Titan Embeddings** - 1536-dimensional vectors for precise semantic search  
+✅ **Amazon Textract** - Handles complex tables in SOC 2 PDFs  
+✅ **Human-in-the-Loop** - 0.65 confidence threshold gates review workflows  
+✅ **BullMQ Workers** - Scalable background job processing  
+✅ **pgvector** - Native PostgreSQL vector similarity search  
+
+## Troubleshooting
+
+### PostgreSQL Connection Failed
+- Ensure Docker containers are running: `docker ps`
+- Check DATABASE_URL in .env
+
+### Bedrock/Textract Errors
+- Verify AWS credentials in .env
+- Ensure AWS region supports Bedrock models
+- Check service quotas in AWS console
+
+### Redis Connection Issues
+- Verify Redis container is healthy: `docker-compose ps`
+- Check REDIS_HOST and REDIS_PORT in .env
+
+## License
+
+UNLICENSED
 $ npm run test
 
 # e2e tests
