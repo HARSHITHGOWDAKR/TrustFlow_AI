@@ -10,7 +10,14 @@ interface ReviewItem {
   answer: string | null;
   status: string;
   confidence: number | null;
-  citations: string | null;
+  citations: CitationItem[];
+}
+
+interface CitationItem {
+  embeddingId: number;
+  score: number;
+  snippet: string;
+  source: string;
 }
 
 interface ReviewInterfaceProps {
@@ -22,7 +29,6 @@ interface ReviewInterfaceProps {
 
 export function ReviewInterface({
   items,
-  projectId,
   onStatusUpdate,
   isLoading = false,
 }: ReviewInterfaceProps) {
@@ -95,23 +101,39 @@ export function ReviewInterface({
         ) : (
           <>
             <p className="text-gray-800 mb-4">{item.answer || 'No answer generated'}</p>
-            {item.citations && (
+            {!!item.citations?.length && (
               <div className="bg-gray-50 p-3 rounded mb-4">
                 <p className="text-sm font-semibold text-gray-700 mb-1">Sources:</p>
-                <p className="text-sm text-gray-600">{item.citations}</p>
+                <div className="space-y-2">
+                  {item.citations.map((citation) => (
+                    <div key={`${item.id}-${citation.embeddingId}`} className="rounded border bg-white p-2">
+                      <p className="text-xs font-medium text-gray-700">
+                        {citation.source} | Score {(citation.score * 100).toFixed(0)}%
+                      </p>
+                      <p className="text-xs text-gray-600 whitespace-pre-wrap">{citation.snippet}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
+            )}
+            {item.confidence !== null && item.confidence < 0.65 && (
+              <p className="mb-4 rounded border border-red-200 bg-red-50 p-2 text-xs font-medium text-red-700">
+                Low confidence: mandatory human review required before export.
+              </p>
             )}
             {showEdit && (
               <div className="flex gap-2">
                 <Button
                   onClick={() => handleApprove(item)}
                   className="bg-green-600 hover:bg-green-700"
+                  disabled={isLoading}
                 >
                   ✓ Approve
                 </Button>
                 <Button
                   onClick={() => setEditingId(item.id)}
                   variant="outline"
+                  disabled={isLoading}
                 >
                   ✎ Edit & Approve
                 </Button>
@@ -119,6 +141,7 @@ export function ReviewInterface({
                   <AlertDialogTrigger asChild>
                     <Button
                       variant="destructive"
+                      disabled={isLoading}
                     >
                       ✗ Reject
                     </Button>

@@ -25,7 +25,20 @@ export class TrustFlowKnowledgeController {
         ...result,
       };
     } catch (error) {
-      throw new HttpException((error as Error).message, HttpStatus.INTERNAL_SERVER_ERROR);
+      const message = (error as Error).message || 'Knowledge base ingestion failed';
+
+      if (message.includes('Project not found')) {
+        throw new HttpException(message, HttpStatus.NOT_FOUND);
+      }
+
+      if (message.includes('SubscriptionRequiredException') || message.includes('AWS Access Key Id needs a subscription')) {
+        throw new HttpException(
+          'Textract is not enabled for this AWS account/key. Enable Textract access in AWS or use credentials with Textract subscription.',
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      throw new HttpException(message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }

@@ -15,8 +15,11 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should return service health', () => {
+      const res = appController.getHealth();
+      expect(res.service).toBe('TrustFlow Backend');
+      expect(res.status).toBe('ok');
+      expect(Array.isArray(res.routes)).toBe(true);
     });
   });
 });

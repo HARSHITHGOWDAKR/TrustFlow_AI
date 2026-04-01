@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tab, Tabs, TabsContent, TabsList } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReviewInterface } from '@/components/ReviewInterface';
 
 interface Project {
@@ -19,13 +19,19 @@ interface ReviewItem {
   answer: string | null;
   status: string;
   confidence: number | null;
-  citations: string | null;
+  citations: Array<{
+    embeddingId: number;
+    score: number;
+    snippet: string;
+    source: string;
+  }>;
 }
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
+  const [reviewMode, setReviewMode] = useState<'queue' | 'all'>('queue');
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
 
@@ -60,16 +66,44 @@ export function ProjectsPage() {
     }
   };
 
+  const loadReviewItems = async (projectId: number, mode: 'queue' | 'all') => {
+    if (mode === 'queue') {
+      const queueResponse = await fetch(`http://localhost:3000/projects/${projectId}/review-queue`);
+      if (queueResponse.ok) {
+        const queueData = await queueResponse.json();
+        setReviewItems(queueData.questions ?? []);
+        return;
+      }
+    }
+
+    // Backward-compatible fallback and all-items loader.
+    const response = await fetch(`http://localhost:3000/projects/${projectId}/review`);
+    if (!response.ok) throw new Error('Failed to fetch review data');
+    const data = await response.json();
+    setReviewItems(data.questions ?? []);
+  };
+
   const handleViewProject = async (project: Project) => {
     setSelectedProject(project);
+    setReviewMode('queue');
     setLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:3000/projects/${project.id}/review`);
-      if (!response.ok) throw new Error('Failed to fetch review data');
+      await loadReviewItems(project.id, 'queue');
+    } catch (error) {
+      console.error('Fetch error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      const data = await response.json();
-      setReviewItems(data.questions);
+  const handleChangeReviewMode = async (mode: 'queue' | 'all') => {
+    if (!selectedProject) return;
+    setReviewMode(mode);
+    setLoading(true);
+
+    try {
+      await loadReviewItems(selectedProject.id, mode);
     } catch (error) {
       console.error('Fetch error:', error);
     } finally {
@@ -180,18 +214,34 @@ export function ProjectsPage() {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold">{selectedProject.name}</h2>
-            <Button
-              onClick={() => setSelectedProject(null)}
-              variant="outline"
-            >
-              ← Back to Projects
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={reviewMode === 'queue' ? 'default' : 'outline'}
+                onClick={() => handleChangeReviewMode('queue')}
+                disabled={loading}
+              >
+                Needs Review
+              </Button>
+              <Button
+                variant={reviewMode === 'all' ? 'default' : 'outline'}
+                onClick={() => handleChangeReviewMode('all')}
+                disabled={loading}
+              >
+                All
+              </Button>
+              <Button
+                onClick={() => setSelectedProject(null)}
+                variant="outline"
+              >
+                ← Back to Projects
+              </Button>
+            </div>
           </div>
 
           <Tabs defaultValue="review">
             <TabsList className="grid w-full grid-cols-2">
-              <Tab value="review">Review</Tab>
-              <Tab value="export">Export</Tab>
+              <TabsTrigger value="review">Review</TabsTrigger>
+              <TabsTrigger value="export">Export</TabsTrigger>
             </TabsList>
 
             <TabsContent value="review">

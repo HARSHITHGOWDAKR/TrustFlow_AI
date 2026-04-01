@@ -38,10 +38,26 @@ export class AwsIntegrationService {
     if (!stream) return '';
     if (typeof stream === 'string') return stream;
     if (Buffer.isBuffer(stream)) return stream.toString('utf-8');
+    if (stream instanceof Uint8Array) return Buffer.from(stream).toString('utf-8');
+    if (typeof stream?.transformToString === 'function') {
+      return stream.transformToString();
+    }
 
     const chunks: Buffer[] = [];
     for await (const chunk of stream) {
-      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : Buffer.from(chunk));
+      if (typeof chunk === 'string') {
+        chunks.push(Buffer.from(chunk));
+      } else if (Buffer.isBuffer(chunk)) {
+        chunks.push(chunk);
+      } else if (chunk instanceof Uint8Array) {
+        chunks.push(Buffer.from(chunk));
+      } else if (typeof chunk === 'number') {
+        chunks.push(Buffer.from([chunk]));
+      } else if (chunk?.value && chunk.value instanceof Uint8Array) {
+        chunks.push(Buffer.from(chunk.value));
+      } else {
+        this.logger.warn(`Unsupported Bedrock stream chunk type: ${typeof chunk}`);
+      }
     }
 
     return Buffer.concat(chunks).toString('utf-8');
@@ -76,17 +92,19 @@ export class AwsIntegrationService {
     }
   }
 
-  async generateEmbeddings(text: string) {
+  async generateEmbeddings(text: string, dimensions = 1024) {
     const result = await this.invokeBedrockModel('amazon.titan-embed-text-v2:0', {
       inputText: text,
+      dimensions,
+      normalize: true,
     });
 
     if (!result?.embedding) {
       throw new Error('Unexpected Bedrock Titan embedding response format');
     }
 
-    if (!Array.isArray(result.embedding) || result.embedding.length !== 1536) {
-      throw new Error('Embedding dimension mismatch. Expected 1536');
+    if (!Array.isArray(result.embedding) || result.embedding.length !== dimensions) {
+      throw new Error(`Embedding dimension mismatch. Expected ${dimensions}`);
     }
 
     return result.embedding;
@@ -94,15 +112,34 @@ export class AwsIntegrationService {
 
   async generateDraftAnswer(prompt: string) {
     const result = await this.invokeBedrockModel('anthropic.claude-3-5-sonnet-20240620-v1:0', {
-      input: prompt,
-      max_tokens_to_sample: 1024,
+      anthropic_version: 'bedrock-2023-05-31',
+      max_tokens: 800,
       temperature: 0.2,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: prompt,
+            },
+          ],
+        },
+      ],
     });
 
-    if (!result?.outputText && !result?.output) {
+    const contentText = Array.isArray(result?.content)
+      ? result.content
+          .map((block: { text?: string }) => block?.text ?? '')
+          .join('\n')
+          .trim()
+      : '';
+
+    const output = (contentText || result?.outputText || result?.output || '').trim();
+    if (!output) {
       throw new Error('Unexpected Bedrock Claude response format');
     }
 
-    return (result.outputText ?? result.output) as string;
+    return output;
   }
 }

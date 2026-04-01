@@ -2,15 +2,51 @@ import { Controller, Post, Get, Patch, Param, Body, UploadedFile, UseInterceptor
 import { FileInterceptor } from '@nestjs/platform-express';
 import { PrismaService } from '../prisma/prisma.service';
 import { DraftWorker } from '../draft/draft.worker';
+import { TrustFlowKnowledgeService } from '../trustflow-knowledge/trustflow-knowledge.service';
 import * as XLSX from 'xlsx';
 import type { Response } from 'express';
+
+interface CitationItem {
+  embeddingId: number;
+  score: number;
+  snippet: string;
+  source: string;
+}
 
 @Controller('projects')
 export class ProjectsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly draftWorker: DraftWorker,
+    private readonly knowledgeService: TrustFlowKnowledgeService,
   ) {}
+
+  private parseCitations(rawCitations: string | null): CitationItem[] {
+    if (!rawCitations) return [];
+    try {
+      const parsed = JSON.parse(rawCitations) as CitationItem[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  @Get()
+  async listProjects() {
+    const projects = await this.prisma.project.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      projects: projects.map((project) => ({
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+      })),
+    };
+  }
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
@@ -85,7 +121,36 @@ export class ProjectsController {
         answer: q.answer,
         status: q.status,
         confidence: q.confidence,
-        citations: q.citations,
+        citations: this.parseCitations(q.citations),
+      })),
+    };
+  }
+
+  @Get(':id/review-queue')
+  async getReviewQueue(@Param('id') id: string) {
+    const projectId = Number(id);
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new HttpException('Project not found', HttpStatus.NOT_FOUND);
+    }
+
+    const questions = await this.prisma.questionItem.findMany({
+      where: { projectId, status: 'NEEDS_REVIEW' },
+      orderBy: { id: 'asc' },
+    });
+
+    return {
+      projectId,
+      questions: questions.map((q) => ({
+        id: q.id,
+        question: q.question,
+        answer: q.answer,
+        status: q.status,
+        confidence: q.confidence,
+        citations: this.parseCitations(q.citations),
       })),
     };
   }
@@ -93,10 +158,10 @@ export class ProjectsController {
   @Patch('questions/:id/status')
   async updateQuestionStatus(
     @Param('id') id: string,
-    @Body() body: { status: string; editedAnswer?: string },
+    @Body() body: { status: string; editedAnswer?: string; reviewer?: string },
   ) {
     const questionId = Number(id);
-    const { status, editedAnswer } = body;
+    const { status, editedAnswer, reviewer } = body;
 
     // Validate status (Q-Flow pattern)
     const validStatuses = ['PENDING', 'DRAFTED', 'NEEDS_REVIEW', 'APPROVED', 'REJECTED'];
@@ -118,9 +183,19 @@ export class ProjectsController {
       where: { id: questionId },
       data: {
         status,
-        answer: editedAnswer ?? currentQuestion.answer,
+        answer: editedAnswer?.trim() || currentQuestion.answer,
       },
     });
+
+    // Continuous learning loop: approved answers become new retrieval memory.
+    if (status === 'APPROVED' && updated.answer?.trim()) {
+      await this.knowledgeService.ingestFeedbackAnswer(
+        currentQuestion.projectId,
+        currentQuestion.question,
+        updated.answer,
+        reviewer ?? 'reviewer',
+      );
+    }
 
     // Log review event (Q-Flow audit trail pattern)
     await this.prisma.reviewEvent.create({
@@ -128,8 +203,8 @@ export class ProjectsController {
         questionItemId: questionId,
         action: status === 'APPROVED' ? 'approve' : status === 'REJECTED' ? 'reject' : 'edit',
         oldAnswer: currentQuestion.answer,
-        newAnswer: editedAnswer,
-        reviewer: 'user', // Could be JWT user in production
+        newAnswer: updated.answer,
+        reviewer: reviewer ?? 'user',
       },
     });
 

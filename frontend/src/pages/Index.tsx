@@ -53,8 +53,8 @@ const Index = () => {
             className="mt-10 flex items-center justify-center gap-4"
             initial="hidden" animate="visible" variants={fadeUp} custom={3}
           >
-            <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 font-display font-semibold px-8">
-              Get Early Access
+            <Button size="lg" asChild className="bg-accent text-accent-foreground hover:bg-accent/90 font-display font-semibold px-8">
+              <Link to="/projects">Open Reviewer Console</Link>
             </Button>
             <Button size="lg" variant="outline" asChild className="border-indigo-light/30 text-indigo-light hover:bg-indigo-light/10 font-display">
               <Link to="/technical">

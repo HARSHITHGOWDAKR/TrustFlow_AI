@@ -16,7 +16,22 @@ export class TrustFlowKnowledgeService {
     return `[${embedding.join(',')}]`;
   }
 
+  private async persistEmbedding(projectId: number, chunk: string, source: string) {
+    const embedding = await this.awsIntegrationService.generateEmbeddings(chunk, 1024);
+    const vectorExpression = `vector('${this.toVectorLiteral(embedding)}')`;
+
+    await this.prisma.$executeRaw`
+      INSERT INTO "Embedding" ("projectId", "chunk", "vector", "source", "createdAt")
+      VALUES (${projectId}, ${chunk}, ${Prisma.raw(vectorExpression)}, ${source}, NOW())
+    `;
+  }
+
   async ingestPdfToKnowledgeBase(projectId: number, buffer: Buffer, source = 'upload') {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
     const parsed = await this.awsIntegrationService.parseDocumentWithTextract(buffer);
     const text = parsed.text;
     if (!text?.trim()) {
@@ -36,14 +51,7 @@ export class TrustFlowKnowledgeService {
     const results = [];
 
     for (const chunk of chunks) {
-      const embedding = await this.awsIntegrationService.generateEmbeddings(chunk);
-
-      // use raw SQL to insert vector(1536)
-      const vectorExpression = `vector('${this.toVectorLiteral(embedding)}')`;
-      await this.prisma.$executeRaw`
-        INSERT INTO "Embedding" ("projectId", "chunk", "vector", "source", "createdAt")
-        VALUES (${projectId}, ${chunk}, ${Prisma.raw(vectorExpression)}, ${source}, NOW())
-      `;
+      await this.persistEmbedding(projectId, chunk, source);
 
       results.push({ chunk, source });
     }
@@ -54,5 +62,13 @@ export class TrustFlowKnowledgeService {
       chunkCount: chunks.length,
       inserted: results.length,
     };
+  }
+
+  async ingestFeedbackAnswer(projectId: number, question: string, answer: string, reviewer = 'human-review') {
+    const content = `Question: ${question}\nAnswer: ${answer}`;
+    const source = `review-feedback:${reviewer}`;
+    await this.persistEmbedding(projectId, content, source);
+
+    this.logger.log(`Feedback embedded for project ${projectId} by ${reviewer}`);
   }
 }

@@ -3,6 +3,13 @@ import { Worker, Queue } from 'bullmq';
 import { AwsIntegrationService } from '../aws-integration/aws-integration.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+interface CitationItem {
+  embeddingId: number;
+  score: number;
+  snippet: string;
+  source: string;
+}
+
 @Injectable()
 export class DraftWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DraftWorker.name);
@@ -57,14 +64,16 @@ export class DraftWorker implements OnModuleInit, OnModuleDestroy {
 
   private async fetchTopChunks(projectId: number, embedding: number[]) {
     const vectorLiteral = `[${embedding.join(',')}]`;
+    const safeProjectId = Number(projectId);
+    const query = `
+      SELECT "id", "chunk", "source", (1.0 / (1.0 + ("vector" <=> vector('${vectorLiteral}')))) AS similarity
+      FROM "Embedding"
+      WHERE "projectId" = ${safeProjectId}
+      ORDER BY "vector" <=> vector('${vectorLiteral}')
+      LIMIT 3;
+    `;
     const rows: Array<{ id: number; chunk: string; source: string | null; similarity: number }> =
-      await this.prisma.$queryRaw`
-        SELECT "id", "chunk", "source", (1.0 / (1.0 + ("vector" <=> vector('${vectorLiteral}')))) AS similarity
-        FROM "Embedding"
-        WHERE "projectId" = ${projectId}
-        ORDER BY "vector" <=> vector('${vectorLiteral}')
-        LIMIT 4;
-      `;
+      await this.prisma.$queryRawUnsafe(query);
 
     return rows;
   }
@@ -81,12 +90,49 @@ export class DraftWorker implements OnModuleInit, OnModuleDestroy {
 
     for (const question of pendingItems) {
       try {
-        const contextEmbeddings = await this.awsIntegrationService.generateEmbeddings(question.question);
+        const contextEmbeddings = await this.awsIntegrationService.generateEmbeddings(question.question, 1024);
         const topChunks = await this.fetchTopChunks(projectId, contextEmbeddings);
 
-        const contextText = topChunks.map((c, i) => `Chunk ${i + 1} (score=${c.similarity.toFixed(4)}):\n${c.chunk}`).join('\n\n');
+        if (topChunks.length === 0) {
+          await this.prisma.questionItem.update({
+            where: { id: question.id },
+            data: {
+              answer: 'Not enough information',
+              confidence: 0,
+              status: 'NEEDS_REVIEW',
+              citations: JSON.stringify([]),
+            },
+          });
+          continue;
+        }
 
-        const prompt = `You are a SOC 2 security analyst. Answer the question: ${question.question}\n\nContext:\n${contextText}\n\nProvide a concise answer with citations.`;
+        const citations: CitationItem[] = topChunks.map((chunk) => ({
+          embeddingId: chunk.id,
+          score: Number(chunk.similarity),
+          snippet: chunk.chunk,
+          source: chunk.source ?? 'unknown',
+        }));
+
+        const contextText = citations
+          .map(
+            (c, i) =>
+              `Citation ${i + 1} | source=${c.source} | score=${c.score.toFixed(4)}\n${c.snippet}`,
+          )
+          .join('\n\n');
+
+        const prompt = `You are a GRC compliance analyst.
+
+Question:
+${question.question}
+
+Context:
+${contextText}
+
+Rules:
+- Use only the provided context.
+- If context is insufficient, say "Not enough information".
+- Provide a concise, audit-friendly answer.
+- End with a short "Citations:" line listing the citation numbers you used.`;
 
         const aiAnswer = await this.awsIntegrationService.generateDraftAnswer(prompt);
 
@@ -99,7 +145,7 @@ export class DraftWorker implements OnModuleInit, OnModuleDestroy {
             answer: aiAnswer,
             confidence: highestSimilarity,
             status,
-            citations: topChunks.map((c) => c.source ?? 'unknown').join('; '),
+            citations: JSON.stringify(citations),
           },
         });
       } catch (err) {

@@ -24,6 +24,22 @@ const Navbar = () => {
             Home
           </Link>
           <Link
+            to="/projects"
+            className={`text-sm font-medium transition-colors hover:text-primary ${
+              location.pathname === "/projects" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            Projects
+          </Link>
+          <Link
+            to="/knowledge-base"
+            className={`text-sm font-medium transition-colors hover:text-primary ${
+              location.pathname === "/knowledge-base" ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            Knowledge Base
+          </Link>
+          <Link
             to="/technical"
             className={`text-sm font-medium transition-colors hover:text-primary ${
               location.pathname === "/technical" ? "text-primary" : "text-muted-foreground"

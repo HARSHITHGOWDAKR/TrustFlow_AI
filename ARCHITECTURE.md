@@ -11,13 +11,14 @@ Inspired by [Q-Flow](https://github.com/degerahmet/q-flow), TrustFlow ingests se
 ✅ **Confidence Scoring** - Low-confidence answers flagged for mandatory review  
 ✅ **Human-in-the-Loop** - Review interface with approve/edit/reject workflow  
 ✅ **Audit Trail** - ReviewEvent logs track all review actions  
+✅ **Continuous Learning** - Approved/edited answers are embedded back into memory  
 ✅ **Export Gate** - 409 response if items still need review  
 
 ## What It Does
 
 1. **Knowledge Base Ingestion**: Upload security policy PDFs (SOC2, ISO27001, etc.)
 2. **PDF Processing**: Extract text/tables using Amazon Textract
-3. **Embeddings**: Convert chunks to 1536-dim vectors using Bedrock Titan
+3. **Embeddings**: Convert chunks to 1024-dim vectors using Bedrock Titan v2
 4. **Question Upload**: Create project from Excel questionnaire
 5. **Draft Generation**: AI generates answers using RAG + Claude 3.5 Sonnet
 6. **Human Review**: Approve, edit, or reject each answer
@@ -71,7 +72,7 @@ model Embedding {
   id        Int
   projectId Int
   chunk     String
-  vector    vector(1536)  // Bedrock Titan embeddings
+  vector    vector(1024)  // Bedrock Titan v2 embeddings
   source    String?       // PDF filename
 }
 
@@ -205,13 +206,13 @@ npm run dev
 | **Document Input** | Markdown copy-paste | PDF (Textract) |
 | **PDF Support** | ❌ | ✅ Tables, forms, layout |
 | **Knowledge Input** | Manual Markdown| PDF drag-drop |
-| **Embedings** | Gemini | Bedrock Titan (1536-dim) |
+| **Embedings** | Gemini | Bedrock Titan (1024-dim) |
 | **Architecture** | Monorepo (Turborepo) | Monorepo (npm workspaces) |
 
 ## AWS Integration Details
 
 ### Bedrock
-- **Embeddings**: `amazon.titan-embed-text-v2:0` (1536 dimensions)
+- **Embeddings**: `amazon.titan-embed-text-v2:0` (1024 dimensions)
 - **LLM**: `anthropic.claude-3-5-sonnet-20240620-v1:0`
 - **Error Handling**: Throttling, retry logic
 

@@ -70,7 +70,7 @@ const TechnicalDeepDive = () => {
                 icon: Database,
                 title: "Vector Storage",
                 subtitle: "Amazon Aurora (pgvector)",
-                description: "Document chunks are embedded into 1536-dimensional vectors using Bedrock Titan Text Embeddings and stored in Amazon Aurora with pgvector for high-speed semantic retrieval.",
+                description: "Document chunks are embedded into 1024-dimensional vectors using Bedrock Titan v2 text embeddings and stored in Amazon Aurora with pgvector for high-speed semantic retrieval.",
               },
               {
                 step: "03",

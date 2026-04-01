@@ -36,7 +36,7 @@ model Embedding {
   projectId Int
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   chunk     String
-  vector    Unsupported("vector(1536)")
+  vector    Unsupported("vector(1024)")
   source    String?
   createdAt DateTime @default(now())
 }

@@ -1,22 +1,56 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface KnowledgeBasePageProps {
-  projectId: number;
+  projectId?: number;
+}
+
+interface ProjectOption {
+  id: number;
+  name: string;
 }
 
 export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
+  const [activeProjectId, setActiveProjectId] = useState<number | null>(projectId ?? null);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingProjects, setLoadingProjects] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
 
+  useEffect(() => {
+    const loadProjects = async () => {
+      setLoadingProjects(true);
+      try {
+        const response = await fetch('http://localhost:3000/projects');
+        if (!response.ok) throw new Error('Failed to load projects');
+        const data = await response.json();
+        const loadedProjects = (data.projects ?? []) as ProjectOption[];
+        setProjects(loadedProjects);
+
+        if (activeProjectId === null && loadedProjects.length > 0) {
+          setActiveProjectId(loadedProjects[0].id);
+        }
+      } catch (error) {
+        setMessage({
+          type: 'error',
+          text: `Could not load projects: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        });
+      } finally {
+        setLoadingProjects(false);
+      }
+    };
+
+    void loadProjects();
+  }, [projectId]);
+
   const handleFileUpload = async () => {
-    if (!file) return;
+    if (!file || activeProjectId === null) return;
 
     setLoading(true);
     setMessage(null);
@@ -26,7 +60,7 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`http://localhost:3000/knowledge-base/${projectId}/ingest`, {
+      const response = await fetch(`http://localhost:3000/knowledge-base/${activeProjectId}/ingest`, {
         method: 'POST',
         body: formData,
       });
@@ -85,6 +119,29 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
           <CardTitle>Upload PDF</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Project</label>
+            <Select
+              value={activeProjectId !== null ? String(activeProjectId) : undefined}
+              onValueChange={(value) => setActiveProjectId(Number(value))}
+              disabled={loadingProjects || projects.length === 0}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={loadingProjects ? 'Loading projects...' : 'Select a project'} />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={String(project.id)}>
+                    {project.name} (#{project.id})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {projects.length === 0 && !loadingProjects && (
+              <p className="text-xs text-gray-600">No projects found. Upload a questionnaire in Projects first.</p>
+            )}
+          </div>
+
           <div className="border-2 border-dashed rounded-lg p-6 text-center">
             <Input
               type="file"
@@ -107,7 +164,7 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
 
           <Button
             onClick={handleFileUpload}
-            disabled={!file || loading}
+            disabled={!file || loading || activeProjectId === null}
             className="w-full bg-blue-600 hover:bg-blue-700"
           >
             {loading ? 'Processing...' : 'Upload PDF'}
@@ -118,7 +175,7 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
             <ul className="list-disc list-inside space-y-1">
               <li>PDF is extracted using Amazon Textract</li>
               <li>Text is split into 1000-char chunks</li>
-              <li>Each chunk is embedded using Bedrock Titan (1536-dim)</li>
+              <li>Each chunk is embedded using Bedrock Titan v2 (1024-dim)</li>
               <li>Embeddings are stored in PostgreSQL vector database</li>
             </ul>
           </div>
@@ -137,7 +194,7 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
             <strong>Chunking:</strong> Long documents are split into overlapping chunks for better search.
           </p>
           <p>
-            <strong>Embeddings:</strong> Each chunk is converted to a 1536-dimensional vector using Bedrock.
+            <strong>Embeddings:</strong> Each chunk is converted to a 1024-dimensional vector using Bedrock Titan v2.
           </p>
           <p>
             <strong>Storage:</strong> Vectors are stored with pgvector for semantic search.
