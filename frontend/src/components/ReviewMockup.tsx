@@ -34,10 +34,10 @@ const questions: QuestionItem[] = [
     question: "How is data encrypted at rest?",
     status: "APPROVED",
     answer:
-      "All data at rest is encrypted using AES-256 via AWS KMS managed keys. Database volumes on Amazon Aurora use encrypted EBS storage. S3 buckets enforce SSE-S3 encryption with bucket policies preventing unencrypted uploads. Key rotation occurs automatically every 365 days.",
+      "All data at rest is encrypted using AES-256 with automatic key rotation every 365 days. Database volumes use encrypted storage. All buckets enforce encryption policies preventing unencrypted uploads. Encryption keys are rotated automatically for compliance.",
     confidence: 0.97,
     citations: [
-      { source: "Security_Policy.pdf", section: "§4.2 – Data Encryption at Rest", snippet: "All persistent data stores utilize AES-256 encryption via AWS Key Management Service…", score: 0.97 },
+      { source: "Security_Policy.pdf", section: "§4.2 – Data Encryption at Rest", snippet: "All persistent data stores utilize AES-256 encryption with automatic key management…", score: 0.97 },
       { source: "Compliance_Matrix.pdf", section: "§1.3 – SOC 2 Controls", snippet: "Encryption at rest is enforced across all storage services including Aurora, S3, and EBS…", score: 0.91 },
     ],
   },
@@ -69,10 +69,10 @@ const questions: QuestionItem[] = [
     question: "How do you handle vulnerability management?",
     status: "NEEDS_REVIEW",
     answer:
-      "Vulnerability scanning runs continuously via AWS Inspector and Snyk for application dependencies. Critical vulnerabilities (CVSS ≥ 9.0) require remediation within 48 hours per our SLA. Weekly scan reports are reviewed by the security team and tracked in Jira.",
+      "Vulnerability scanning runs continuously using industry-standard security tools and Snyk for application dependencies. Critical vulnerabilities (CVSS ≥ 9.0) require remediation within 48 hours per our SLA. Weekly scan reports are reviewed by the security team and tracked in our incident management system.",
     confidence: 0.88,
     citations: [
-      { source: "Vuln_Mgmt_Policy.pdf", section: "§3.2 – Scanning Cadence", snippet: "Continuous scanning is performed using AWS Inspector for infrastructure and Snyk for dependencies…", score: 0.90 },
+      { source: "Vuln_Mgmt_Policy.pdf", section: "§3.2 – Scanning Cadence", snippet: "Continuous scanning is performed using industry-standard vulnerability scanners and Snyk for dependencies…", score: 0.90 },
       { source: "SLA_Document.pdf", section: "§4.1 – Remediation Timelines", snippet: "Critical vulnerabilities with CVSS score ≥ 9.0 must be remediated within 48 hours…", score: 0.86 },
     ],
   },

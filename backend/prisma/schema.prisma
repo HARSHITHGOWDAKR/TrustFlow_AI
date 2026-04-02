@@ -8,27 +8,37 @@ datasource db {
 }
 
 model Project {
-  id          Int            @id @default(autoincrement())
-  name        String
-  description String?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  questions   QuestionItem[]
-  embeddings  Embedding[]
+  id           Int            @id @default(autoincrement())
+  name         String
+  description  String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  questions    QuestionItem[]
+  embeddings   Embedding[]
+  chunks       KnowledgeChunk[]
+  policies     KnowledgeBasePolicy[] @relation("projectPolicies")
 }
 
 model QuestionItem {
-  id              Int            @id @default(autoincrement())
-  projectId       Int
-  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  question        String
-  answer          String?
-  status          String         @default("PENDING")
-  confidence      Float?
-  citations       String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  reviewEvents    ReviewEvent[]
+  id                      Int            @id @default(autoincrement())
+  projectId               Int
+  project                 Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  question                String
+  answer                  String?
+  status                  String         @default("PENDING")
+  confidence              Float?
+  citations               String?
+  // New agent pipeline fields
+  intakeCategory          String?        // Category from Intake agent
+  expandedQuery           String?        // Expanded query from Intake agent
+  retrievedChunksData     String?        // JSON: [{ source, chunk, score }]
+  verificationStatus      String?        // PASS | FAIL | NEEDS_REVIEW from Critic
+  verificationReason      String?        // Reason from Critic agent
+  verificationSuggestions String?        // Suggestions from Critic agent
+  processingTimeMs        Int?           // Total processing time
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  reviewEvents            ReviewEvent[]
 }
 
 model Embedding {
@@ -50,4 +60,50 @@ model ReviewEvent {
   newAnswer       String?
   reviewer        String?  // reviewer name
   timestamp       DateTime @default(now())
+}
+
+model KnowledgeChunk {
+  id              Int      @id @default(autoincrement())
+  projectId       Int
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  source          String   // filename
+  chunkIndex      Int      // position in file
+  chunk           String   // the text content
+  pineconeId      String?  // reference to Pinecone vector ID
+  createdAt       DateTime @default(now())
+  
+  @@unique([projectId, source, chunkIndex])
+}
+
+// Knowledge Base Management Models
+model KnowledgeBasePolicy {
+  id          String                    @id @default(cuid())
+  projectId   Int
+  project     Project?                  @relation(fields: [projectId], references: [id], onDelete: Cascade, name: "projectPolicies")
+  title       String                    // Policy title (e.g., "Data Retention Policy")
+  content     String                    // Full policy content
+  category    String?                   // Category (e.g., "Data Protection", "Security", "HR")
+  tags        String?                   // Comma-separated tags for organization
+  source      String                    @default("MANUAL") // FILE | MANUAL | API
+  isActive    Boolean                   @default(true)
+  uploadedAt  DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  chunks      KnowledgeBaseChunk[]      // Chunked content for RAG retrieval
+
+  @@index([projectId])
+  @@index([category])
+  @@index([isActive])
+}
+
+model KnowledgeBaseChunk {
+  id               String                @id @default(cuid())
+  policyId         String
+  policy           KnowledgeBasePolicy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  content          String                // Chunk text content
+  embeddingVector  String?               // JSON array of embeddings for vector search
+  order            Int                   // Order/position in policy
+  sourceRef        String?               // Reference to source section/page
+  createdAt        DateTime              @default(now())
+
+  @@index([policyId])
 }

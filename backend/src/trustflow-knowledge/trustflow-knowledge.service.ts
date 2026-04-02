@@ -1,37 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { AwsIntegrationService } from '../aws-integration/aws-integration.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { GeminiService } from '../llm-agents/gemini.service';
+import { PineconeService } from '../llm-agents/pinecone.service';
 
 @Injectable()
 export class TrustFlowKnowledgeService {
   private readonly logger = new Logger(TrustFlowKnowledgeService.name);
-  private readonly embeddingDimensions = Number(process.env.EMBEDDING_DIM || 1536);
   private readonly chunkSize = Number(process.env.KB_CHUNK_SIZE || 600);
   private readonly chunkOverlap = Number(process.env.KB_CHUNK_OVERLAP || 120);
   private readonly minChunkLength = Number(process.env.KB_MIN_CHUNK_LENGTH || 120);
 
   constructor(
-    private readonly awsIntegrationService: AwsIntegrationService,
     private readonly prisma: PrismaService,
+    private readonly geminiService: GeminiService,
+    private readonly pineconeService: PineconeService,
   ) {}
 
-  private toVectorLiteral(embedding: number[]) {
-    return `[${embedding.join(',')}]`;
-  }
-
-  private normalizeText(rawText: string) {
+  private normalizeText(rawText: string): string {
     return rawText.replace(/\r\n/g, '\n').replace(/\t/g, ' ').trim();
   }
 
-  private getOverlapSuffix(text: string) {
-    if (this.chunkOverlap <= 0 || text.length <= this.chunkOverlap) {
-      return text;
-    }
-    return text.slice(text.length - this.chunkOverlap);
-  }
-
-  private chunkText(rawText: string) {
+  private chunkText(rawText: string): string[] {
     const normalizedText = this.normalizeText(rawText);
     if (!normalizedText) return [];
 
@@ -50,39 +39,30 @@ export class TrustFlowKnowledgeService {
         if (currentChunk.trim().length >= this.minChunkLength) {
           chunks.push(currentChunk.trim());
         }
-        currentChunk = '';
 
-        for (let start = 0; start < paragraph.length; start += this.chunkSize - this.chunkOverlap) {
-          const part = paragraph.slice(start, Math.min(start + this.chunkSize, paragraph.length)).trim();
-          if (part.length >= this.minChunkLength) {
-            chunks.push(part);
+        const overlapSuffix = this.getOverlapSuffix(currentChunk);
+        currentChunk = overlapSuffix + ' ' + paragraph;
+
+        while (currentChunk.length >= this.chunkSize) {
+          const newChunk = currentChunk.substring(0, this.chunkSize);
+          if (newChunk.trim().length >= this.minChunkLength) {
+            chunks.push(newChunk.trim());
           }
-          if (start + this.chunkSize >= paragraph.length) break;
+
+          const overlapUpdate = this.getOverlapSuffix(newChunk);
+          currentChunk = overlapUpdate + ' ' + currentChunk.substring(this.chunkSize);
         }
-        continue;
-      }
+      } else {
+        currentChunk += ' ' + paragraph;
 
-      const separator = currentChunk ? ' ' : '';
-      const candidate = `${currentChunk}${separator}${paragraph}`;
+        if (currentChunk.length >= this.chunkSize) {
+          if (currentChunk.trim().length >= this.minChunkLength) {
+            chunks.push(currentChunk.trim());
+          }
 
-      if (candidate.length <= this.chunkSize) {
-        currentChunk = candidate;
-        continue;
-      }
-
-      if (currentChunk.trim().length >= this.minChunkLength) {
-        chunks.push(currentChunk.trim());
-      }
-
-      const overlapSeed = this.getOverlapSuffix(currentChunk.trim());
-      currentChunk = overlapSeed ? `${overlapSeed} ${paragraph}` : paragraph;
-
-      if (currentChunk.length > this.chunkSize) {
-        const splitHead = currentChunk.slice(0, this.chunkSize).trim();
-        if (splitHead.length >= this.minChunkLength) {
-          chunks.push(splitHead);
+          const overlapSuffix = this.getOverlapSuffix(currentChunk);
+          currentChunk = overlapSuffix;
         }
-        currentChunk = this.getOverlapSuffix(splitHead);
       }
     }
 
@@ -93,88 +73,132 @@ export class TrustFlowKnowledgeService {
     return chunks;
   }
 
-  private async persistEmbedding(projectId: number, chunk: string, source: string) {
-    const embedding = await this.awsIntegrationService.generateEmbeddings(chunk, this.embeddingDimensions);
-    const vectorExpression = `vector('${this.toVectorLiteral(embedding)}')`;
-
-    await this.prisma.$executeRaw`
-      INSERT INTO "Embedding" ("projectId", "chunk", "vector", "source", "createdAt")
-      VALUES (${projectId}, ${chunk}, ${Prisma.raw(vectorExpression)}, ${source}, NOW())
-    `;
+  private getOverlapSuffix(text: string): string {
+    if (this.chunkOverlap <= 0 || text.length <= this.chunkOverlap) {
+      return text;
+    }
+    return text.slice(text.length - this.chunkOverlap);
   }
 
-  async ingestPdfToKnowledgeBase(projectId: number, buffer: Buffer, source = 'upload') {
-    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+  /**
+   * Ingest text file to knowledge base
+   * 1. Chunk the text
+   * 2. Generate embeddings using Gemini
+   * 3. Store in Pinecone
+   * 4. Store chunk metadata in database
+   */
+  async ingestTextFileToKnowledgeBase(
+    projectId: number,
+    buffer: Buffer,
+    source = 'upload',
+  ) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
     if (!project) {
       throw new Error('Project not found');
     }
 
-    const parsed = await this.awsIntegrationService.parseDocumentWithTextract(buffer);
-    const text = parsed.text;
+    const text = buffer.toString('utf-8');
     if (!text?.trim()) {
-      throw new Error('No text found via Textract');
+      throw new Error('No text content in uploaded file');
     }
+
+    this.logger.log(`📄 Ingesting "${source}"...`);
 
     const chunks = this.chunkText(text);
     if (chunks.length === 0) {
-      throw new Error('No chunkable content found in uploaded PDF');
+      throw new Error('No chunkable content found');
     }
 
-    const results = [];
+    this.logger.log(`📦 Split into ${chunks.length} chunks`);
+    this.logger.log(`🔗 Generating embeddings...`);
+    
+    const embeddings = await this.geminiService.embedBatch(chunks);
 
-    for (const chunk of chunks) {
-      await this.persistEmbedding(projectId, chunk, source);
+    this.logger.log(`📌 Uploading to Pinecone...`);
+    const pineconeVectors = chunks.map((chunk, index) => ({
+      id: `${projectId}-${source}-${index}-${Date.now()}`,
+      embedding: embeddings[index],
+      source,
+      chunk,
+      projectId,
+      chunkIndex: index,
+    }));
 
-      results.push({ chunk, source });
-    }
+    await this.pineconeService.upsertChunks(pineconeVectors);
+
+    // Store chunks in database for retrieval
+    this.logger.log(`💾 Storing chunks in database...`);
+    await this.prisma.knowledgeChunk.deleteMany({
+      where: {
+        projectId,
+        source,
+      },
+    });
+
+    const dbChunks = await this.prisma.knowledgeChunk.createMany({
+      data: chunks.map((chunk, index) => ({
+        projectId,
+        source,
+        chunkIndex: index,
+        chunk,
+        pineconeId: pineconeVectors[index].id,
+      })),
+    });
+
+    this.logger.log(`✅ Ingestion complete: ${chunks.length} chunks stored (DB: ${dbChunks.count})`);
 
     return {
       projectId,
       source,
       chunkCount: chunks.length,
-      inserted: results.length,
-      parser: (parsed as { parser?: string }).parser || 'textract',
+      embedded: embeddings.length,
+      parser: 'gemini-embeddings + pinecone + postgresql',
+      dbCount: dbChunks.count,
     };
   }
 
-  async ingestFeedbackAnswer(projectId: number, question: string, answer: string, reviewer = 'human-review') {
+  /**
+   * Ingest feedback answer to knowledge base
+   */
+  async ingestFeedbackAnswer(
+    projectId: number,
+    question: string,
+    answer: string,
+    reviewer = 'human-review',
+  ) {
     const content = `Question: ${question}\nAnswer: ${answer}`;
     const source = `review-feedback:${reviewer}`;
-    await this.persistEmbedding(projectId, content, source);
 
+    const embedding = await this.geminiService.embedText(content);
+    const pineconeVectors = [{
+      id: `${projectId}-${source}-${Date.now()}-${Math.random()}`,
+      embedding,
+      source,
+      chunk: content,
+      projectId,
+    }];
+
+    await this.pineconeService.upsertChunks(pineconeVectors);
     this.logger.log(`Feedback embedded for project ${projectId} by ${reviewer}`);
   }
 
+  /**
+   * Get knowledge base stats
+   */
   async getKnowledgeStats(projectId: number) {
-    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
     if (!project) {
       throw new Error('Project not found');
     }
 
-    const chunkCount = await this.prisma.embedding.count({
-      where: { projectId },
-    });
-
-    const latestEmbeddings = await this.prisma.embedding.findMany({
-      where: { projectId },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: { source: true },
-    });
-
-    const sources = Array.from(
-      new Set(
-        latestEmbeddings
-          .map((item) => item.source)
-          .filter((value): value is string => Boolean(value)),
-      ),
-    );
-
     return {
       projectId,
-      chunkCount,
-      sourceCount: sources.length,
-      recentSources: sources,
+      status: 'Knowledge base stored in Pinecone',
+      message: 'Use retrieval agent to query knowledge base',
     };
   }
 }

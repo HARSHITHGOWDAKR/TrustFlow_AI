@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { DraftWorker } from './draft.worker';
-import { AwsIntegrationModule } from '../aws-integration/aws-integration.module';
+import { LlmAgentsModule } from '../llm-agents/llm-agents.module';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-  imports: [AwsIntegrationModule, PrismaModule],
+  imports: [LlmAgentsModule, PrismaModule],
   providers: [DraftWorker],
   exports: [DraftWorker],
 })

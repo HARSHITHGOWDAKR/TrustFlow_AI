@@ -116,16 +116,49 @@ export class ProjectsController {
       throw new HttpException('Project not found', HttpStatus.NOT_FOUND);
     }
 
+    // Fetch audit trail for all questions
+    const auditTrails = await this.prisma.reviewEvent.findMany({
+      where: { questionItem: { projectId } },
+      orderBy: { timestamp: 'asc' },
+    });
+
+    // Group audit trails by questionItemId
+    const auditMap = new Map<number, typeof auditTrails>();
+    auditTrails.forEach((event) => {
+      const key = event.questionItemId;
+      if (!auditMap.has(key)) {
+        auditMap.set(key, []);
+      }
+      auditMap.get(key)!.push(event);
+    });
+
     return {
       projectId: project.id,
-      questions: project.questions.map((q) => ({
-        id: q.id,
-        question: q.question,
-        answer: q.answer,
-        status: q.status,
-        confidence: q.confidence,
-        citations: this.parseCitations(q.citations),
-      })),
+      questions: project.questions.map((q) => {
+        let frontendStatus = q.status;
+        if (q.status === 'NEEDS_REVIEW') {
+          frontendStatus = 'NEEDS_EDIT';
+        } else if (q.status === 'REJECTED') {
+          frontendStatus = 'FLAGGED';
+        }
+
+        return {
+          id: q.id,
+          question: q.question,
+          answer: q.answer,
+          status: frontendStatus,
+          confidence: q.confidence,
+          citations: this.parseCitations(q.citations),
+          auditTrail: (auditMap.get(q.id) || []).map((event) => ({
+            id: event.id,
+            action: event.action.toUpperCase(),
+            reviewer: event.reviewer,
+            timestamp: event.timestamp.toISOString(),
+            previousValue: event.oldAnswer,
+            newValue: event.newAnswer,
+          })),
+        };
+      }),
     };
   }
 
@@ -141,20 +174,30 @@ export class ProjectsController {
     }
 
     const questions = await this.prisma.questionItem.findMany({
-      where: { projectId, status: { in: ['PENDING', 'NEEDS_REVIEW'] } },
+      where: { projectId, status: { in: ['PENDING', 'NEEDS_REVIEW', 'REJECTED'] } },
       orderBy: { id: 'asc' },
     });
 
     return {
       projectId,
-      questions: questions.map((q) => ({
-        id: q.id,
-        question: q.question,
-        answer: q.answer,
-        status: q.status,
-        confidence: q.confidence,
-        citations: this.parseCitations(q.citations),
-      })),
+      questions: questions.map((q) => {
+        // Map database statuses back to frontend format
+        let frontendStatus = q.status;
+        if (q.status === 'NEEDS_REVIEW') {
+          frontendStatus = 'NEEDS_EDIT';
+        } else if (q.status === 'REJECTED') {
+          frontendStatus = 'FLAGGED';
+        }
+
+        return {
+          id: q.id,
+          question: q.question,
+          answer: q.answer,
+          status: frontendStatus,
+          confidence: q.confidence,
+          citations: this.parseCitations(q.citations),
+        };
+      }),
     };
   }
 
@@ -166,10 +209,10 @@ export class ProjectsController {
     const questionId = Number(id);
     const { status, editedAnswer, reviewer } = body;
 
-    // Validate status (Q-Flow pattern)
-    const validStatuses = ['PENDING', 'DRAFTED', 'NEEDS_REVIEW', 'APPROVED', 'REJECTED'];
+    // Validate status - accept frontend statuses (APPROVED, NEEDS_EDIT, FLAGGED, PENDING, PROCESSING)
+    const validStatuses = ['PENDING', 'DRAFTED', 'NEEDS_REVIEW', 'APPROVED', 'REJECTED', 'NEEDS_EDIT', 'FLAGGED', 'PROCESSING'];
     if (!validStatuses.includes(status)) {
-      throw new HttpException('Invalid status', HttpStatus.BAD_REQUEST);
+      throw new HttpException(`Invalid status. Accepted: ${validStatuses.join(', ')}`, HttpStatus.BAD_REQUEST);
     }
 
     // Get current question to track review event
@@ -181,17 +224,25 @@ export class ProjectsController {
       throw new HttpException('Question not found', HttpStatus.NOT_FOUND);
     }
 
+    // Map frontend statuses to backend if needed
+    let dbStatus = status;
+    if (status === 'NEEDS_EDIT') {
+      dbStatus = 'NEEDS_REVIEW';
+    } else if (status === 'FLAGGED') {
+      dbStatus = 'REJECTED';
+    }
+
     // Update question
     const updated = await this.prisma.questionItem.update({
       where: { id: questionId },
       data: {
-        status,
+        status: dbStatus,
         answer: editedAnswer?.trim() || currentQuestion.answer,
       },
     });
 
     // Continuous learning loop: approved answers become new retrieval memory.
-    if (status === 'APPROVED' && updated.answer?.trim()) {
+    if (dbStatus === 'APPROVED' && updated.answer?.trim()) {
       await this.knowledgeService.ingestFeedbackAnswer(
         currentQuestion.projectId,
         currentQuestion.question,
@@ -200,25 +251,81 @@ export class ProjectsController {
       );
     }
 
-    // Log review event (Q-Flow audit trail pattern)
+    // Log review event - map frontend statuses to actions
+    let action = 'edit';
+    if (status === 'APPROVED') {
+      action = 'approve';
+    } else if (status === 'FLAGGED' || status === 'REJECTED') {
+      action = 'reject';
+    } else if (status === 'NEEDS_EDIT' || status === 'NEEDS_REVIEW') {
+      action = 'needs_edit';
+    }
+
     await this.prisma.reviewEvent.create({
       data: {
         questionItemId: questionId,
-        action: status === 'APPROVED' ? 'approve' : status === 'REJECTED' ? 'reject' : 'edit',
+        action,
         oldAnswer: currentQuestion.answer,
         newAnswer: updated.answer,
         reviewer: reviewer ?? 'user',
       },
     });
 
-    return updated;
+    // Return with original frontend status
+    return { ...updated, status };
+  }
+
+  /**
+   * MANUAL TRIGGER: Re-enqueue pending questions for processing
+   * Used when the DraftWorker queue was cleared or for manual retry
+   */
+  @Post(':id/trigger-processing')
+  async triggerProcessing(@Param('id') id: string) {
+    const projectId = Number(id);
+    
+    // Verify project exists
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+    
+    if (!project) {
+      throw new HttpException('Project not found', HttpStatus.NOT_FOUND);
+    }
+    
+    // Count pending questions (case-insensitive check for both 'PENDING' and 'pending')
+    const pendingQuestions = await this.prisma.questionItem.findMany({
+      where: { projectId },
+    });
+    
+    const pending = pendingQuestions.filter(q => 
+      q.status.toUpperCase() === 'PENDING' || q.status.toUpperCase() === 'DRAFTED'
+    );
+    
+    const pendingCount = pending.length;
+    
+    if (pendingCount === 0) {
+      return {
+        message: 'No pending questions to process',
+        pendingCount: 0,
+        status: 'idle',
+      };
+    }
+    
+    // Re-enqueue for processing
+    await this.draftWorker.enqueueDraft(projectId);
+    
+    return {
+      message: `Re-enqueued ${pendingCount} questions for processing`,
+      pendingCount,
+      status: 'queued',
+    };
   }
 
   @Get(':id/export')
   async exportProject(@Param('id') id: string, @Res() res: Response) {
     const projectId = Number(id);
     
-    // Check if any items are still in NEEDS_REVIEW (Q-Flow export gate pattern)
+    // Check if any items are still in NEEDS_REVIEW
     const pendingCount = await this.prisma.questionItem.count({
       where: { projectId, status: 'NEEDS_REVIEW' },
     });

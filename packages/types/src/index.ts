@@ -1,4 +1,4 @@
-// Status enum for questions following Q-Flow pattern
+// Status enum for questions
 export enum QuestionItemStatus {
   PENDING = "PENDING",
   DRAFTED = "DRAFTED",
@@ -30,7 +30,7 @@ export interface ProjectResponse {
   questions?: QuestionItemResponse[];
 }
 
-// Create project request (mimics Q-Flow)
+// Create project request
 export interface CreateProjectRequestDto {
   name: string;
   description?: string;
@@ -76,7 +76,7 @@ export interface ExportResponse {
   }>;
 }
 
-// Knowledge base feed request (for PDF ingestion like Q-Flow's Markdown)
+// Knowledge base feed request (for PDF ingestion)
 export interface KnowledgeBaseFeedDto {
   projectId: number;
   source: string; // PDF filename or URL

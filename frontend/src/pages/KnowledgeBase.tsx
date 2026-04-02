@@ -90,7 +90,7 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
 
     setLoading(true);
     setMessage(null);
-    setProcessingStatus('Uploading and processing PDF...');
+    setProcessingStatus('Uploading and processing TXT file...');
 
     try {
       const formData = new FormData();
@@ -106,7 +106,7 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
       const data = await response.json();
       setMessage({
         type: 'success',
-        text: `✓ Successfully ingested ${data.chunkCount} chunks from PDF!`,
+        text: `✓ Successfully ingested ${data.chunkCount} chunks from text file!`,
       });
       await loadStats(activeProjectId);
       setFile(null);
@@ -114,7 +114,7 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
     } catch (error) {
       setMessage({
         type: 'error',
-        text: `Failed to ingest PDF: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        text: `Failed to ingest text file: ${error instanceof Error ? error.message : 'Unknown error'}`,
       });
     } finally {
       setLoading(false);
@@ -248,21 +248,21 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
 
                 {/* File Upload Area */}
                 <div>
-                  <label htmlFor="pdf-input" className="cursor-pointer">
+                  <label htmlFor="txt-input" className="cursor-pointer">
                     <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-8 text-center hover:border-blue-400 dark:hover:border-cyan-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all">
                       <FileText className="h-12 w-12 text-slate-400 mx-auto mb-3" />
                       <p className="text-lg font-semibold text-slate-900 dark:text-white">
                         {file ? file.name : 'Click to upload or drag and drop'}
                       </p>
                       <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                        PDF files only (SOC2, ISO27001, Company Policies, etc.)
+                        TXT files only (SOC2, ISO27001, Company Policies, etc.)
                       </p>
                     </div>
                   </label>
                   <Input
-                    id="pdf-input"
+                    id="txt-input"
                     type="file"
-                    accept=".pdf"
+                    accept=".txt"
                     onChange={(e) => setFile(e.target.files?.[0] || null)}
                     className="hidden"
                   />
@@ -277,12 +277,12 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
                   {loading ? (
                     <>
                       <Loader className="h-5 w-5 mr-2 animate-spin" />
-                      Processing PDF...
+                      Processing TXT file...
                     </>
                   ) : (
                     <>
                       <Upload className="h-5 w-5 mr-2" />
-                      Upload & Index PDF
+                      Upload & Index TXT
                     </>
                   )}
                 </Button>
@@ -299,7 +299,7 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
                         1
                       </span>
                       <span>
-                        <strong>Extraction:</strong> Amazon Textract extracts text from your PDF
+                        <strong>Extraction:</strong> System extracts text from your TXT files and documents
                       </span>
                     </li>
                     <li className="flex items-start gap-3">
@@ -307,7 +307,7 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
                         2
                       </span>
                       <span>
-                        <strong>Chunking:</strong> Document is split into overlapping sections
+                        <strong>Chunking:</strong> Document is split into overlapping sections for semantic search
                       </span>
                     </li>
                     <li className="flex items-start gap-3">
@@ -315,7 +315,7 @@ export function KnowledgeBasePage({ projectId }: KnowledgeBasePageProps) {
                         3
                       </span>
                       <span>
-                        <strong>Embeddings:</strong> Each chunk converted to vector using Bedrock
+                        <strong>Embeddings:</strong> Each chunk converted to vector using Gemini embeddings API
                       </span>
                     </li>
                     <li className="flex items-start gap-3">

@@ -11,8 +11,10 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Clock, CheckCircle2, AlertCircle, Loader, TrendingUp } from 'lucide-react';
+import { Clock, CheckCircle2, AlertCircle, Loader, TrendingUp, AlertTriangle, Shield, History, CheckSquare, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { KnowledgeBaseRetrieval } from './KnowledgeBaseRetrieval';
+import { AgentPipelineView } from './AgentPipelineView';
 
 interface ReviewItem {
   id: number;
@@ -21,6 +23,15 @@ interface ReviewItem {
   status: string;
   confidence: number | null;
   citations: CitationItem[];
+  auditTrail?: AuditEvent[];
+  // Agent pipeline fields
+  intakeCategory?: string;
+  expandedQuery?: string;
+  retrievedChunksData?: string;
+  verificationStatus?: string;
+  verificationReason?: string;
+  verificationSuggestions?: string;
+  processingTimeMs?: number;
 }
 
 interface CitationItem {
@@ -28,6 +39,15 @@ interface CitationItem {
   score: number;
   snippet: string;
   source: string;
+}
+
+interface AuditEvent {
+  id: number;
+  action: string;
+  reviewer: string;
+  timestamp: string;
+  previousValue?: string;
+  newValue?: string;
 }
 
 interface ReviewInterfaceProps {
@@ -143,114 +163,267 @@ export function ReviewInterface({
     return badges;
   };
 
-  const renderItem = (item: ReviewItem, showEdit = false) => (
-    <motion.div
-      key={item.id}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
-      <Card className="mb-4 border-slate-200 dark:border-slate-800">
-        <CardHeader>
-          <CardTitle className="text-lg text-slate-900 dark:text-white">
-            {item.question}
-          </CardTitle>
-          <div className="flex gap-2 mt-2 flex-wrap">{getStatusBadge(item.status, item.confidence)}</div>
-        </CardHeader>
-        <CardContent>
-          {editingId === item.id && showEdit ? (
-            <div className="space-y-2">
-              <Textarea
-                value={editedAnswers[item.id] || item.answer || ''}
-                onChange={(e) =>
-                  setEditedAnswers({
-                    ...editedAnswers,
-                    [item.id]: e.target.value,
-                  })
-                }
-                className="min-h-[100px]"
-              />
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => handleEdit(item)}
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
-                >
-                  Save Edit
-                </Button>
-                <Button onClick={() => setEditingId(null)} variant="outline">
-                  Cancel
-                </Button>
+  const [expandedAuditId, setExpandedAuditId] = useState<number | null>(null);
+
+  const renderItem = (item: ReviewItem, showEdit = false) => {
+    const isLowConfidence = item.confidence !== null && item.confidence < 0.65;
+    const requiresHumanReview = item.status === 'NEEDS_REVIEW' || isLowConfidence;
+
+    return (
+      <motion.div
+        key={item.id}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <Card className={`mb-4 border-slate-200 dark:border-slate-800 ${isLowConfidence ? 'border-l-4 border-l-red-500' : ''}`}>
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-900 dark:text-white">
+              {item.question}
+            </CardTitle>
+            <div className="flex gap-2 mt-2 flex-wrap">{getStatusBadge(item.status, item.confidence)}</div>
+            
+            {/* Low Confidence Warning Banner */}
+            {isLowConfidence && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md flex items-start gap-2"
+              >
+                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-red-800 dark:text-red-300 text-sm">
+                    Mandatory Human Review Required
+                  </p>
+                  <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                    Confidence score is {(item.confidence * 100).toFixed(0)}% (threshold: 65%). This answer requires expert validation before approval.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </CardHeader>
+          
+          <CardContent className="space-y-4">
+            {editingId === item.id && showEdit ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={editedAnswers[item.id] || item.answer || ''}
+                  onChange={(e) =>
+                    setEditedAnswers({
+                      ...editedAnswers,
+                      [item.id]: e.target.value,
+                    })
+                  }
+                  className="min-h-[100px]"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleEdit(item)}
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+                  >
+                    Save Edit
+                  </Button>
+                  <Button onClick={() => setEditingId(null)} variant="outline">
+                    Cancel
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div>
-              {item.answer ? (
-                <div className="mb-4">
-                  <p className="text-slate-700 dark:text-slate-300 mb-3">{item.answer}</p>
-                  {item.citations && item.citations.length > 0 && (
-                    <div className="text-sm text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-700 pt-2">
-                      <p className="font-semibold mb-1">Sources:</p>
-                      <ul className="space-y-1">
-                        {item.citations.map((citation, idx) => (
-                          <li key={idx} className="text-xs">
-                            {citation.snippet} ({citation.source})
-                          </li>
-                        ))}
-                      </ul>
+            ) : (
+              <div className="space-y-4">
+                {item.answer ? (
+                  <div className="space-y-4">
+                    {/* Agent Pipeline View */}
+                    {item.intakeCategory || item.expandedQuery || item.retrievedChunksData ? (
+                      <div className="mb-4">
+                        <AgentPipelineView
+                          question={item.question}
+                          intakeCategory={item.intakeCategory}
+                          expandedQuery={item.expandedQuery}
+                          retrievedChunksData={item.retrievedChunksData}
+                          answer={item.answer}
+                          verificationStatus={item.verificationStatus}
+                          verificationReason={item.verificationReason}
+                          verificationSuggestions={item.verificationSuggestions}
+                          confidence={item.confidence}
+                          processingTimeMs={item.processingTimeMs}
+                        />
+                      </div>
+                    ) : null}
+
+                    <div>
+                      <p className="text-slate-700 dark:text-slate-300 mb-3">{item.answer}</p>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-slate-500 dark:text-slate-400 italic">
-                  No answer generated yet. Processing...
-                </div>
-              )}
-              {showEdit && (
-                <div className="flex gap-2 flex-wrap">
-                  {item.status !== 'REJECTED' && (
-                    <>
-                      <Button
-                        onClick={() => {
-                          setEditingId(item.id);
-                          setEditedAnswers({ ...editedAnswers, [item.id]: item.answer || '' });
-                        }}
-                        className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
+
+                    {/* Knowledge Base Retrieval Display */}
+                    {item.citations && item.citations.length > 0 && (
+                      <KnowledgeBaseRetrieval citations={item.citations} question={item.question} />
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-slate-500 dark:text-slate-400 italic">
+                    No answer generated yet. Processing...
+                  </div>
+                )}
+
+                {/* Human Verification Requirement Card */}
+                {requiresHumanReview && showEdit && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md"
+                  >
+                    <div className="flex items-start gap-2">
+                      <Users className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-blue-900 dark:text-blue-300">Human Verification Required</p>
+                        <div className="text-xs text-blue-800 dark:text-blue-400 mt-1 space-y-1">
+                          <p>• Review confidence threshold: {isLowConfidence ? '❌ Below 65%' : '✅ Above 65%'}</p>
+                          <p>• Export eligible: {item.status === 'APPROVED' ? '✅ Yes' : '❌ After approval'}</p>
+                          <p>• Requires: Expert validation and sign-off</p>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Audit Trail Section */}
+                {item.auditTrail && item.auditTrail.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="border-t border-slate-200 dark:border-slate-700 pt-3"
+                  >
+                    <button
+                      onClick={() => setExpandedAuditId(expandedAuditId === item.id ? null : item.id)}
+                      className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+                    >
+                      <History className="w-4 h-4" />
+                      Audit Trail ({item.auditTrail.length})
+                      <span className="text-xs ml-auto">
+                        {expandedAuditId === item.id ? '▼' : '▶'}
+                      </span>
+                    </button>
+                    {expandedAuditId === item.id && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="mt-3 space-y-2 text-xs"
                       >
-                        Edit & Approve
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
-                          >
-                            Reject
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogTitle>Reject Answer</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to reject this answer? You can edit and re-approve it
-                            later.
-                          </AlertDialogDescription>
-                          <div className="flex gap-2 justify-end mt-4">
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleReject(item)}>
-                              Reject
-                            </AlertDialogAction>
+                        {item.auditTrail.map((event, idx) => (
+                          <div key={idx} className="flex gap-3 pb-2 border-b border-slate-100 dark:border-slate-700 last:border-b-0">
+                            <div className="text-slate-500 dark:text-slate-400 min-w-fit">
+                              {new Date(event.timestamp).toLocaleString()}
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-750 dark:text-slate-250">
+                                {event.action} by {event.reviewer}
+                              </p>
+                              {event.previousValue && event.newValue && (
+                                <p className="text-slate-600 dark:text-slate-400 mt-1">
+                                  Updated: "{event.previousValue}" → "{event.newValue}"
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
+                        ))}
+                      </motion.div>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Compliance Checklist */}
+                {showEdit && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Shield className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      <p className="font-semibold text-sm text-slate-900 dark:text-white">Compliance Checklist</p>
+                    </div>
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex items-center gap-2">
+                        <CheckSquare className={`w-4 h-4 ${item.answer ? 'text-green-600 dark:text-green-400' : 'text-slate-400'}`} />
+                        <span className={item.answer ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500 dark:text-slate-400'}>
+                          Answer generated & grounded in policy
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckSquare className={`w-4 h-4 ${item.citations && item.citations.length > 0 ? 'text-green-600 dark:text-green-400' : 'text-slate-400'}`} />
+                        <span className={item.citations && item.citations.length > 0 ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500 dark:text-slate-400'}>
+                          Sources cited & verified
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckSquare className={`w-4 h-4 ${item.status === 'APPROVED' ? 'text-green-600 dark:text-green-400' : 'text-slate-400'}`} />
+                        <span className={item.status === 'APPROVED' ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500 dark:text-slate-400'}>
+                          Human approved & verified
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckSquare className={`w-4 h-4 ${item.auditTrail && item.auditTrail.length > 0 ? 'text-green-600 dark:text-green-400' : 'text-slate-400'}`} />
+                        <span className={item.auditTrail && item.auditTrail.length > 0 ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500 dark:text-slate-400'}>
+                          Audit trail logged & complete
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckSquare className={`w-4 h-4 ${item.status === 'APPROVED' && !isLowConfidence ? 'text-green-600 dark:text-green-400' : 'text-slate-400'}`} />
+                        <span className={item.status === 'APPROVED' && !isLowConfidence ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500 dark:text-slate-400'}>
+                          Export ready
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {showEdit && (
+                  <div className="flex gap-2 flex-wrap pt-2">
+                    {item.status !== 'REJECTED' && (
+                      <>
+                        <Button
+                          onClick={() => {
+                            setEditingId(item.id);
+                            setEditedAnswers({ ...editedAnswers, [item.id]: item.answer || '' });
+                          }}
+                          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
+                        >
+                          Edit & Approve
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+                            >
+                              Reject
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogTitle>Reject Answer</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to reject this answer? You can edit and re-approve it
+                              later.
+                            </AlertDialogDescription>
+                            <div className="flex gap-2 justify-end mt-4">
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleReject(item)}>
+                                Reject
+                              </AlertDialogAction>
+                            </div>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -398,6 +571,46 @@ export function ReviewInterface({
                     </p>
                   )}
               </div>
+
+              {/* Export Eligibility & Compliance Summary */}
+              {totalItems > 0 && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mt-4 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shield className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                    <p className="font-semibold text-sm text-slate-900 dark:text-white">Export Compliance</p>
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className={needsReviewItems.length === 0 ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}>
+                        {needsReviewItems.length === 0 ? '✓' : '⚠'}
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-300">
+                        Low confidence items: {needsReviewItems.length} remaining
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={pendingItems.length === 0 ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}>
+                        {pendingItems.length === 0 ? '✓' : '⧗'}
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-300">
+                        All questions processed: {pendingItems.length === 0 ? 'Ready' : `${pendingItems.length} pending`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={approvedItems.length === totalItems ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}>
+                        {approvedItems.length === totalItems ? '✓' : '—'}
+                      </span>
+                      <span className={approvedItems.length === totalItems ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500 dark:text-slate-400'}>
+                        Export eligible: {approvedItems.length}/{totalItems} approved
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </div>
           </CardContent>
         </Card>
