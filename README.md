@@ -1,221 +1,392 @@
-# TrustFlow AI
+# TrustFlow - AI-Powered Question & Answer System
 
-TrustFlow AI is an AWS-powered, human-in-the-loop RAG system that automates security questionnaire workflows.
+TrustFlow is an intelligent question-answering system that combines RAG (Retrieval-Augmented Generation), LLM agents, and knowledge base management to provide accurate, confident, and traceable answers with citations.
 
-It helps teams ingest policy documents, draft answers with citations, route low-confidence responses for review, and export final outputs.
+## Table of Contents
 
-## What This Project Solves
+- [Project Overview](#project-overview)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Running the Project](#running-the-project)
+- [Project Structure](#project-structure)
+- [Key Features](#key-features)
+- [API Endpoints](#api-endpoints)
+- [Troubleshooting](#troubleshooting)
 
-Security and compliance teams spend significant time manually answering repetitive questionnaires (SOC 2, ISO 27001, CAIQ, and similar formats). TrustFlow AI automates most of that flow while keeping humans in control for sensitive or low-confidence responses.
+## Project Overview
 
-## Core Features
-
-- PDF knowledge ingestion using Amazon Textract
-- Semantic retrieval over pgvector in PostgreSQL
-- Draft answer generation with Amazon Bedrock models
-- Confidence-based review gating (`NEEDS_REVIEW` when confidence is low)
-- Reviewer actions: approve, edit+approve, reject
-- Audit trail with review events
-- Export gate blocking when unresolved review items remain
-- Continuous learning loop by embedding approved/edited answers
-
-## Architecture
-
-- Backend: NestJS + Prisma + BullMQ
-- Frontend: React + Vite + Tailwind + shadcn/ui
-- Data layer: PostgreSQL (pgvector) + Redis
-- AWS services: Textract + Bedrock Runtime
-
-Monorepo layout:
-
-- `backend/` API, workers, Prisma schema
-- `frontend/` UI
-- `packages/` shared workspace packages
+TrustFlow is a full-stack application with:
+- **Backend**: NestJS-based REST API with RAG, LLM agents, and knowledge base management
+- **Frontend**: React-based UI for project management, question review, and knowledge base uploads
+- **Database**: PostgreSQL with Prisma ORM and vector embeddings support
+- **LLM Integration**: Multi-provider support (Gemini, HuggingFace, Pinecone)
 
 ## Prerequisites
 
-- Node.js 18+
-- npm 9+
-- Docker Desktop running
-- AWS account and credentials with Bedrock/Textract access
+Before you begin, ensure you have the following installed:
 
-## Environment Variables
+### Required Software
+- **Node.js**: v18.0.0 or higher
+- **npm**: v9.0.0 or higher
+- **PostgreSQL**: v13.0 or higher
+- **Git**: Latest version
 
-Create `backend/.env`:
+### Required API Keys
+- **Google Gemini API** (for LLM capabilities)
+- **Pinecone API** (for vector embeddings)
+- **HuggingFace API** (optional, for alternative LLM provider)
 
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/trustflow
-REDIS_HOST=localhost
-REDIS_PORT=6379
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-PORT=3000
-```
+## Installation
 
-## Quick Start
-
-From repo root:
-
-1. Install dependencies
+### 1. Clone the Repository
 
 ```bash
+git clone https://github.com/HARSHITHGOWDAKR/TrustFlow_AI.git
+cd TrustFlow_AI
+```
+
+### 2. Install Dependencies
+
+#### Backend Setup
+```bash
+cd backend
 npm install
 ```
 
-2. Start infra (Postgres + Redis)
+#### Frontend Setup
+```bash
+cd ../frontend
+npm install
+```
+
+### 3. Set Up Environment Variables
+
+Create a `.env` file in the `backend` directory:
+
+```env
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/trustflow"
+
+# LLM Providers
+GEMINI_API_KEY="your-gemini-api-key"
+HUGGINGFACE_API_KEY="your-huggingface-api-key"
+PINECONE_API_KEY="your-pinecone-api-key"
+PINECONE_INDEX="your-index-name"
+PINECONE_ENVIRONMENT="your-environment"
+
+# Server
+PORT=3000
+NODE_ENV=development
+
+# JWT (if applicable)
+JWT_SECRET="your-secret-key"
+```
+
+### 4. Set Up Database
+
+#### Create PostgreSQL Database
+```bash
+createdb trustflow
+```
+
+#### Run Prisma Migrations
+```bash
+cd backend
+npx prisma migrate dev --name init
+```
+
+#### Enable Vector Extension (for embeddings)
+```bash
+# Connect to PostgreSQL
+psql -U postgres -d trustflow
+
+# Run SQL
+CREATE EXTENSION IF NOT EXISTS vector;
+\q
+```
+
+### 5. Seed the Database (Optional)
 
 ```bash
 cd backend
-docker-compose up -d
+npx prisma db seed
 ```
 
-3. Ensure pgvector extension is available
+## Configuration
 
-```bash
-docker exec trustflow-postgres psql -U postgres -d trustflow -c "CREATE EXTENSION IF NOT EXISTS vector;"
-```
+### Backend Configuration
 
-4. Sync Prisma schema and generate client
+The backend uses environment variables for configuration. Key settings:
 
-```bash
-cd backend
-npx prisma db push
-npx prisma generate
-```
+- **Database**: PostgreSQL connection string
+- **LLM Providers**: API keys for Gemini, HuggingFace, and Pinecone
+- **Port**: Default 3000 (configurable via PORT env var)
+- **Vector Database**: Pinecone credentials for embeddings
 
-5. Start backend
+### Frontend Configuration
 
+The frontend connects to the backend API at:
+- Development: `http://localhost:3000`
+- Production: Configure via environment variables
+
+## Running the Project
+
+### Development Mode
+
+#### Start Backend
 ```bash
 cd backend
 npm run start:dev
 ```
 
-6. Start frontend (new terminal)
+The backend will run on `http://localhost:3000`
 
+#### Start Frontend (in another terminal)
 ```bash
 cd frontend
 npm run dev
 ```
 
-## Run URLs
+The frontend will run on `http://localhost:5173` (Vite default)
 
-- Backend health: `http://localhost:3000/`
-- Frontend: Vite will pick first free port (`8080+` in current setup)
+### Production Mode
 
-## Demo Script (Mentor Pitch)
-
-Use this 90-second flow when presenting:
-
-1. Open the frontend and show `Projects`.
-2. Upload a questionnaire (`.xlsx`) and create a project.
-3. Open `Knowledge Base`, select the project, and ingest a policy PDF.
-4. Show the review queue with confidence and citations.
-5. Approve one answer, edit+approve one answer, reject one answer.
-6. Explain that approved/edited answers are re-embedded (continuous learning).
-7. Attempt export and show that review gate blocks unresolved items.
-8. Complete review and export the final Excel.
-
-Elevator line:
-
-"TrustFlow AI automates the repetitive 80% of security questionnaires using AWS Bedrock + Textract, while forcing human validation on low-confidence answers."
-
-## Screenshots / GIFs
-
-Add media under:
-
-- `docs/screenshots/`
-- `docs/gifs/`
-
-Recommended assets:
-
-- `docs/screenshots/projects-dashboard.png`
-- `docs/screenshots/knowledge-base-upload.png`
-- `docs/screenshots/review-queue.png`
-- `docs/screenshots/citations-panel.png`
-- `docs/screenshots/export-gate.png`
-- `docs/gifs/end-to-end-flow.gif`
-
-Reference block (enable after files are added):
-
-```md
-![Projects Dashboard](docs/screenshots/projects-dashboard.png)
-![Knowledge Base Upload](docs/screenshots/knowledge-base-upload.png)
-![Review Queue](docs/screenshots/review-queue.png)
-![Citations Panel](docs/screenshots/citations-panel.png)
-![Export Gate](docs/screenshots/export-gate.png)
-![End-to-End Demo](docs/gifs/end-to-end-flow.gif)
+#### Build Backend
+```bash
+cd backend
+npm run build
+npm run start:prod
 ```
 
-## Main API Endpoints
+#### Build Frontend
+```bash
+cd frontend
+npm run build
+npm run preview
+```
+
+### Using Docker (Optional)
+
+If Docker is configured:
+
+```bash
+docker-compose up -d
+```
+
+## Project Structure
+
+```
+TrustFlow/
+├── backend/                          # NestJS Backend
+│   ├── src/
+│   │   ├── llm-agents/              # LLM agent services
+│   │   ├── knowledge-base/          # Knowledge base management
+│   │   ├── projects/                # Project management
+│   │   ├── trustflow-knowledge/     # RAG system
+│   │   └── main.ts                  # Entry point
+│   ├── prisma/
+│   │   └── schema.prisma            # Database schema
+│   └── package.json
+│
+├── frontend/                         # React Frontend
+│   ├── src/
+│   │   ├── components/              # Reusable components
+│   │   ├── pages/                   # Page components
+│   │   └── App.tsx
+│   ├── index.html
+│   └── package.json
+│
+├── packages/
+│   └── types/                       # Shared TypeScript types
+│
+├── prisma/
+│   └── schema.prisma                # Database schema
+│
+└── README.md                        # This file
+```
+
+## Key Features
+
+### 1. Project Management
+- Create and manage projects
+- Upload questions in bulk
+- Track question status (PENDING, DRAFTED, NEEDS_REVIEW, APPROVED, REJECTED)
+
+### 2. RAG System
+- Retrieve relevant context from knowledge base
+- Generate answers using context and LLM
+- Provide confidence scores
+- Include citations from source documents
+
+### 3. Knowledge Base
+- Upload PDF documents and markdown files
+- Automatic chunking and embedding generation
+- Vector search for relevant documents
+- Full-text search support
+
+### 4. LLM Agent Integration
+- Multi-provider support (Gemini, HuggingFace, etc.)
+- Automatic fallback mechanism
+- Configurable model parameters
+- Response parsing and validation
+
+### 5. Review Interface
+- Interactive review workflow
+- Edit answers inline
+- Approve or reject with feedback
+- Export final answers
+
+## API Endpoints
 
 ### Projects
+- `POST /projects` - Create project
+- `GET /projects` - List projects
+- `GET /projects/:id` - Get project details
+- `PUT /projects/:id` - Update project
 
-- `GET /projects`
-- `POST /projects/upload`
-- `GET /projects/:id/review`
-- `GET /projects/:id/review-queue`
-- `PATCH /projects/questions/:id/status`
-- `GET /projects/:id/export`
+### Questions
+- `POST /projects/:id/questions` - Add questions
+- `GET /projects/:id/questions` - Get project questions
+- `PUT /projects/:id/questions/:qid` - Update question status
 
 ### Knowledge Base
+- `POST /knowledge-base/upload` - Upload document
+- `GET /knowledge-base/search` - Search knowledge base
+- `DELETE /knowledge-base/:id` - Delete document
 
-- `POST /knowledge-base/:projectId/ingest`
+### RAG
+- `POST /rag/generate-answer` - Generate answer for question
+- `GET /rag/retrieve` - Retrieve context documents
 
-## Typical Workflow
-
-1. Upload questionnaire (`/projects/upload`)
-2. Upload PDF knowledge for a project (`/knowledge-base/:projectId/ingest`)
-3. Let worker draft answers
-4. Review queue (`/projects/:id/review-queue`)
-5. Approve/edit/reject
-6. Export only when review gate passes
+### Export
+- `GET /projects/:id/export` - Export project answers
 
 ## Troubleshooting
 
-### Backend fails to start with `EADDRINUSE: 3000`
+### Common Issues
 
-Another process already holds port 3000.
-
-```powershell
-$conn = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($null -ne $conn) { Stop-Process -Id $conn.OwningProcess -Force }
+#### 1. Database Connection Failed
+```
+Error: connect ECONNREFUSED 127.0.0.1:5432
 ```
 
-### Ingest endpoint returns 500/502
+**Solution:**
+- Ensure PostgreSQL is running: `psql --version`
+- Check DATABASE_URL in .env file
+- Verify PostgreSQL service is active
 
-If you see `SubscriptionRequiredException`, your AWS key/account does not currently have Textract subscription/access.
+#### 2. Missing API Keys
+```
+Error: GEMINI_API_KEY is not defined
+```
 
-- Enable Textract in your AWS account
-- Use credentials with Textract permission and service access
+**Solution:**
+- Set all required API keys in .env file
+- Restart backend server
 
-### Vector dimension mismatch (`expected 1536 dimensions, not 1024`)
+#### 3. Vector Extension Not Found
+```
+Error: type "vector" does not exist
+```
 
-This means DB vector column shape and embedding dimension are out of sync.
-
-- Ensure your active Prisma schema dimension matches runtime model settings
-- Re-sync schema:
-
+**Solution:**
 ```bash
-cd backend
-npx prisma db push
+psql -U postgres -d trustflow
+CREATE EXTENSION IF NOT EXISTS vector;
+\q
 ```
 
-If your existing table was created with a different vector size, recreate the embedding table or run a manual migration to align dimensions.
+#### 4. Port Already in Use
+```
+Error: listen EADDRINUSE :::3000
+```
 
-### Prisma Windows DLL lock (`EPERM ... query_engine-windows.dll.node`)
-
-Stop all running backend processes and rerun:
-
+**Solution:**
 ```bash
-npx prisma generate
+# Change PORT in .env or use different port
+PORT=3001 npm run start:dev
 ```
 
-## Notes
+#### 5. CORS Issues
+```
+Error: Access to XMLHttpRequest blocked by CORS policy
+```
 
-- Root endpoint (`/`) returns service health JSON, not hello-world text.
-- CORS allows localhost development origins.
+**Solution:**
+- Ensure backend is running
+- Check CORS configuration in backend
+- Frontend URL should be whitelisted
+
+### Getting Help
+
+For issues and support:
+1. Check the documentation files in the project root
+2. Review backend logs: `backend/db-output.txt`
+3. Check browser console for frontend errors
+4. Review server console output
+
+## Development Scripts
+
+### Backend
+```bash
+npm run start:dev      # Start with hot reload
+npm run build          # Build for production
+npm run start:prod     # Run production build
+npm run test           # Run tests
+npm run lint           # Run linter
+```
+
+### Frontend
+```bash
+npm run dev            # Start dev server
+npm run build          # Build for production
+npm run preview        # Preview production build
+npm run lint           # Run linter
+npm run test           # Run tests
+```
+
+## Environment Setup Checklist
+
+- [ ] PostgreSQL installed and running
+- [ ] Node.js v18+ installed
+- [ ] Backend dependencies installed
+- [ ] Frontend dependencies installed
+- [ ] .env file created with API keys
+- [ ] Database migrations applied
+- [ ] Vector extension enabled
+- [ ] Backend starts without errors
+- [ ] Frontend starts without errors
+- [ ] Can create projects
+- [ ] Can upload questions
+- [ ] Can generate answers
+
+## Additional Resources
+
+- [NestJS Documentation](https://docs.nestjs.com/)
+- [React Documentation](https://react.dev/)
+- [Prisma Documentation](https://www.prisma.io/docs/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Pinecone Documentation](https://docs.pinecone.io/)
 
 ## License
 
-UNLICENSED
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## Support
+
+For support, email support@trustflow.ai or open an issue on GitHub.
+
+---
+
+**Happy Coding! 🚀**
